@@ -5,8 +5,11 @@ import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 import {
   applyEngineAction,
+  applySetGameMode,
   botChooseAction,
   createMatch,
+  GAME_MODE_FOLLOW_ME,
+  GAME_MODE_STRAIGHT,
   startNextHand,
   summarizeStateForSeat
 } from "../shared/fortyTwo.js";
@@ -375,6 +378,22 @@ function handleClientAction(ws, msg) {
       return;
     }
     seat.difficulty = diff;
+    roomBroadcastState(room);
+    maybeScheduleBotStep(room);
+    return;
+  }
+
+  if (msg.type === "setGameMode") {
+    if (room.hostClientId !== client.id) {
+      send(ws, "error", { message: "Only the host can change game mode" });
+      return;
+    }
+    const requested = msg.mode === GAME_MODE_FOLLOW_ME ? GAME_MODE_FOLLOW_ME : GAME_MODE_STRAIGHT;
+    const result = applySetGameMode(room.match, requested);
+    if (!result.ok) {
+      send(ws, "error", { message: result.error });
+      return;
+    }
     roomBroadcastState(room);
     maybeScheduleBotStep(room);
     return;

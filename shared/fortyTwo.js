@@ -2,6 +2,9 @@ export const PIPS = [0, 1, 2, 3, 4, 5, 6];
 export const TEAM_BY_SEAT = [0, 1, 0, 1];
 export const MIN_BID = 30;
 export const MAX_BID = 42;
+export const MARKS_TO_WIN = 7;
+export const GAME_MODE_STRAIGHT = "straight";
+export const GAME_MODE_FOLLOW_ME = "followMe";
 
 export function dominoId(a, b) {
   const lo = Math.min(a, b);
@@ -48,7 +51,8 @@ function isTrumpTile(tile, trump) {
   return trump != null && tileHasSuit(tile, trump);
 }
 
-function tileBelongsToSuit(tile, suit, trump) {
+function tileBelongsToSuit(tile, suit, trump, mode = GAME_MODE_STRAIGHT) {
+  if (mode === GAME_MODE_FOLLOW_ME) return tileHasSuit(tile, suit);
   if (trump != null && suit === trump) return tileHasSuit(tile, suit);
   if (isTrumpTile(tile, trump)) return false;
   return tileHasSuit(tile, suit);
@@ -59,11 +63,18 @@ function effectiveSuit(tile, trump) {
   return Math.max(tile.a, tile.b);
 }
 
-function leadSuitFromLeadTile(tile, trump) {
+function leadSuitFromLeadTile(tile, trump, mode = GAME_MODE_STRAIGHT) {
+  if (mode === GAME_MODE_FOLLOW_ME) return Math.max(tile.a, tile.b);
   return effectiveSuit(tile, trump);
 }
 
-function suitRank(tile, suit, trump) {
+function suitRank(tile, suit, trump, mode = GAME_MODE_STRAIGHT) {
+  if (mode === GAME_MODE_FOLLOW_ME) {
+    if (!tileHasSuit(tile, suit)) return -Infinity;
+    if (tile.a === tile.b && tile.a === suit) return 100;
+    const other = tile.a === suit ? tile.b : tile.a;
+    return other;
+  }
   if (effectiveSuit(tile, trump) !== suit) return -Infinity;
   if (tile.a === tile.b && tile.a === suit) return 100;
   if (suit === trump) {
@@ -74,7 +85,19 @@ function suitRank(tile, suit, trump) {
   return other;
 }
 
-function compareTilesForTrick(aTile, bTile, leadSuit, trump) {
+function compareTilesForTrick(aTile, bTile, leadSuit, trump, mode = GAME_MODE_STRAIGHT) {
+  if (mode === GAME_MODE_FOLLOW_ME) {
+    const aFollows = tileHasSuit(aTile, leadSuit);
+    const bFollows = tileHasSuit(bTile, leadSuit);
+    if (aFollows && !bFollows) return 1;
+    if (!aFollows && bFollows) return -1;
+    if (!aFollows && !bFollows) return 0;
+    const ar = suitRank(aTile, leadSuit, null, mode);
+    const br = suitRank(bTile, leadSuit, null, mode);
+    if (ar !== br) return ar > br ? 1 : -1;
+    return 0;
+  }
+
   const aSuit = effectiveSuit(aTile, trump);
   const bSuit = effectiveSuit(bTile, trump);
   const aIsTrump = trump != null && aSuit === trump;
@@ -90,8 +113,8 @@ function compareTilesForTrick(aTile, bTile, leadSuit, trump) {
   if (aFollows && !bFollows) return 1;
   if (!aFollows && bFollows) return -1;
 
-  const ar = suitRank(aTile, targetSuit, trump);
-  const br = suitRank(bTile, targetSuit, trump);
+  const ar = suitRank(aTile, targetSuit, trump, mode);
+  const br = suitRank(bTile, targetSuit, trump, mode);
   if (ar !== br) return ar > br ? 1 : -1;
   return 0;
 }
@@ -103,7 +126,8 @@ function legalTilesForSeat(state, seatIndex) {
   if (state.currentTrick.length === 0) return hand.slice();
 
   const leadSuit = state.currentTrickLeadSuit;
-  const matching = hand.filter((tile) => tileBelongsToSuit(tile, leadSuit, state.trump));
+  const trump = state.gameMode === GAME_MODE_FOLLOW_ME ? null : state.trump;
+  const matching = hand.filter((tile) => tileBelongsToSuit(tile, leadSuit, trump, state.gameMode));
   return matching.length ? matching : hand.slice();
 }
 
@@ -122,6 +146,8 @@ function teamScoreFromWon(wonTricks, wonTiles) {
 function emptyHandState() {
   return {
     phase: "lobby",
+    gameMode: GAME_MODE_STRAIGHT,
+    marksToWin: MARKS_TO_WIN,
     dealer: 0,
     hands: [[], [], [], []],
     bids: [null, null, null, null],
@@ -156,6 +182,8 @@ export function createMatch() {
 }
 
 export function startNextHand(state, rng = Math.random) {
+  if (state.gameMode !== GAME_MODE_FOLLOW_ME) state.gameMode = GAME_MODE_STRAIGHT;
+  if (!Number.isFinite(state.marksToWin)) state.marksToWin = MARKS_TO_WIN;
   const deck = shuffleInPlace(makeDeck(), rng);
   const hands = [[], [], [], []];
   for (let i = 0; i < 28; i += 1) {
@@ -193,6 +221,29 @@ function allBidsComplete(state) {
   return state.bids.every((b) => b !== null);
 }
 
+function enterPlayPhaseFromBid(state, trump = null) {
+  state.trump = trump;
+  state.phase = "playing";
+  state.turn = state.highestBidder;
+  state.bidTurn = null;
+  state.currentTrick = [];
+  state.currentTrickLeadSuit = null;
+  state.currentTrickLeaderSeat = state.highestBidder;
+
+  const bid = state.highestBid ?? MIN_BID;
+  const biddingTeam = TEAM_BY_SEAT[state.highestBidder];
+  const defendingTeam = 1 - biddingTeam;
+  state.teamTargets = [0, 0];
+  state.teamTargets[biddingTeam] = bid;
+  state.teamTargets[defendingTeam] = 43 - bid;
+
+  if (state.gameMode === GAME_MODE_FOLLOW_ME) {
+    state.message = `Follow Me (no trump). Seat ${state.turn + 1} leads.`;
+  } else {
+    state.message = `Trump is ${trump}. Seat ${state.turn + 1} leads.`;
+  }
+}
+
 function forceDealerBid(state) {
   state.highestBid = MIN_BID;
   state.highestBidder = state.dealer;
@@ -200,9 +251,15 @@ function forceDealerBid(state) {
   for (let i = 0; i < 4; i += 1) {
     if (state.bids[i] === null) state.bids[i] = "pass";
   }
-  state.phase = "chooseTrump";
-  state.turn = state.highestBidder;
-  state.message = `Dealer forced to bid ${MIN_BID}. Choose trump.`;
+  if (state.gameMode === GAME_MODE_FOLLOW_ME) {
+    enterPlayPhaseFromBid(state, null);
+    state.message = `Dealer forced to bid ${MIN_BID}. Follow Me (no trump). Seat ${state.turn + 1} leads.`;
+  } else {
+    state.phase = "chooseTrump";
+    state.turn = state.highestBidder;
+    state.bidTurn = null;
+    state.message = `Dealer forced to bid ${MIN_BID}. Choose trump.`;
+  }
 }
 
 export function applyBid(state, seatIndex, bidValue) {
@@ -232,10 +289,15 @@ export function applyBid(state, seatIndex, bidValue) {
       forceDealerBid(state);
       return { ok: true };
     }
-    state.phase = "chooseTrump";
-    state.turn = state.highestBidder;
-    state.bidTurn = null;
-    state.message = `Seat ${state.highestBidder + 1} won bid ${state.highestBid}. Choose trump.`;
+    if (state.gameMode === GAME_MODE_FOLLOW_ME) {
+      enterPlayPhaseFromBid(state, null);
+      state.message = `Seat ${state.highestBidder + 1} won bid ${state.highestBid}. Follow Me (no trump).`;
+    } else {
+      state.phase = "chooseTrump";
+      state.turn = state.highestBidder;
+      state.bidTurn = null;
+      state.message = `Seat ${state.highestBidder + 1} won bid ${state.highestBid}. Choose trump.`;
+    }
     return { ok: true };
   }
 
@@ -246,24 +308,14 @@ export function applyBid(state, seatIndex, bidValue) {
 }
 
 export function applyChooseTrump(state, seatIndex, trump) {
+  if (state.gameMode === GAME_MODE_FOLLOW_ME) {
+    return { ok: false, error: "Follow Me mode uses no trump" };
+  }
   if (state.phase !== "chooseTrump") return { ok: false, error: "Not choosing trump" };
   if (state.highestBidder !== seatIndex) return { ok: false, error: "Only winning bidder chooses trump" };
   const t = Number(trump);
   if (!Number.isInteger(t) || t < 0 || t > 6) return { ok: false, error: "Trump must be 0-6" };
-
-  state.trump = t;
-  state.phase = "playing";
-  state.turn = state.highestBidder;
-  state.currentTrick = [];
-  state.currentTrickLeadSuit = null;
-  state.currentTrickLeaderSeat = state.highestBidder;
-  const bid = state.highestBid ?? MIN_BID;
-  const biddingTeam = TEAM_BY_SEAT[state.highestBidder];
-  const defendingTeam = 1 - biddingTeam;
-  state.teamTargets = [0, 0];
-  state.teamTargets[biddingTeam] = bid;
-  state.teamTargets[defendingTeam] = 43 - bid;
-  state.message = `Trump is ${t}. Seat ${state.turn + 1} leads.`;
+  enterPlayPhaseFromBid(state, t);
   return { ok: true };
 }
 
@@ -274,7 +326,6 @@ function finishHand(state, winnerTeam, reason = "target") {
   const biddingTeam = TEAM_BY_SEAT[bidder];
   const made = winnerTeam === biddingTeam;
 
-  state.phase = "handOver";
   state.lastHandResult = {
     bid,
     bidder,
@@ -287,6 +338,15 @@ function finishHand(state, winnerTeam, reason = "target") {
   };
 
   state.marks[winnerTeam] += 1;
+  const marksToWin = Number.isFinite(state.marksToWin) ? state.marksToWin : MARKS_TO_WIN;
+  if (state.marks[winnerTeam] >= marksToWin) {
+    state.phase = "gameOver";
+    state.winningTeam = winnerTeam;
+    state.message = `Team ${winnerTeam + 1} wins the game ${state.marks[winnerTeam]}-${state.marks[1 - winnerTeam]} (first to ${marksToWin}).`;
+    return;
+  }
+
+  state.phase = "handOver";
   state.message = `Team ${winnerTeam + 1} reached ${state.handPoints[winnerTeam]}/${state.teamTargets[winnerTeam]} and gets 1 mark.`;
   state.dealer = nextSeat(state.dealer);
 }
@@ -334,7 +394,8 @@ export function applyPlayTile(state, seatIndex, tileId) {
   state.currentTrick.push({ seat: seatIndex, tile });
 
   if (state.currentTrick.length === 1) {
-    state.currentTrickLeadSuit = leadSuitFromLeadTile(tile, state.trump);
+    const trump = state.gameMode === GAME_MODE_FOLLOW_ME ? null : state.trump;
+    state.currentTrickLeadSuit = leadSuitFromLeadTile(tile, trump, state.gameMode);
     state.currentTrickLeaderSeat = seatIndex;
   }
 
@@ -345,9 +406,10 @@ export function applyPlayTile(state, seatIndex, tileId) {
   }
 
   let winner = state.currentTrick[0];
+  const trump = state.gameMode === GAME_MODE_FOLLOW_ME ? null : state.trump;
   for (let i = 1; i < state.currentTrick.length; i += 1) {
     const candidate = state.currentTrick[i];
-    if (compareTilesForTrick(candidate.tile, winner.tile, state.currentTrickLeadSuit, state.trump) > 0) {
+    if (compareTilesForTrick(candidate.tile, winner.tile, state.currentTrickLeadSuit, trump, state.gameMode) > 0) {
       winner = candidate;
     }
   }
@@ -397,10 +459,28 @@ export function advanceAfterHand(state) {
 
 export function resetMatch(state) {
   const dealer = state.dealer ?? 0;
+  const gameMode = state.gameMode || GAME_MODE_STRAIGHT;
+  const marksToWin = Number.isFinite(state.marksToWin) ? state.marksToWin : MARKS_TO_WIN;
   Object.assign(state, createMatch());
   state.dealer = dealer;
+  state.gameMode = gameMode;
+  state.marksToWin = marksToWin;
   startNextHand(state);
   return state;
+}
+
+export function applySetGameMode(state, mode) {
+  const nextMode = mode === GAME_MODE_FOLLOW_ME ? GAME_MODE_FOLLOW_ME : GAME_MODE_STRAIGHT;
+  if (state.phase !== "lobby" && state.phase !== "handOver") {
+    return { ok: false, error: "Game mode can only be changed between hands" };
+  }
+  state.gameMode = nextMode;
+  state.trump = null;
+  state.message =
+    nextMode === GAME_MODE_FOLLOW_ME
+      ? "Game mode set to Follow Me (no trump)."
+      : "Game mode set to Straight (trump).";
+  return { ok: true };
 }
 
 function estimateSuitStrength(hand, suit) {
@@ -458,7 +538,8 @@ function choosePlayForBot(state, seatIndex, difficulty) {
 
   const currentTrickValue = state.currentTrick.reduce((s, p) => s + countValue(p.tile), 0);
   const leadSuit = state.currentTrickLeadSuit;
-  const trump = state.trump;
+  const mode = state.gameMode || GAME_MODE_STRAIGHT;
+  const trump = mode === GAME_MODE_FOLLOW_ME ? null : state.trump;
 
   const scored = legal.map((tile) => {
     let score = 0;
@@ -469,17 +550,17 @@ function choosePlayForBot(state, seatIndex, difficulty) {
     if (state.currentTrick.length === 0) {
       score += difficulty >= 4 ? isCount * -0.5 : isCount * -0.2;
       score += isTrump ? (difficulty >= 4 ? 1 : 0.4) : 0;
-      score += suitRank(tile, eff, trump) * 0.15;
+      score += suitRank(tile, eff, trump, mode) * 0.15;
     } else {
       const hypothetical = [...state.currentTrick, { seat: seatIndex, tile }];
       let winner = hypothetical[0];
       for (let i = 1; i < hypothetical.length; i += 1) {
-        if (compareTilesForTrick(hypothetical[i].tile, winner.tile, leadSuit, trump) > 0) winner = hypothetical[i];
+        if (compareTilesForTrick(hypothetical[i].tile, winner.tile, leadSuit, trump, mode) > 0) winner = hypothetical[i];
       }
       const wouldWin = winner.seat === seatIndex;
       score += wouldWin ? 3 : -1;
       score += wouldWin ? currentTrickValue * 0.7 * contractPressure : -isCount * 0.6 * contractPressure;
-      if (difficulty >= 3 && !wouldWin) score -= suitRank(tile, eff, trump) * 0.08;
+      if (difficulty >= 3 && !wouldWin) score -= suitRank(tile, eff, trump, mode) * 0.08;
       if (difficulty >= 5 && isTrump && currentTrickValue === 0) score -= 0.8;
     }
 
@@ -527,6 +608,8 @@ export function summarizeStateForSeat(state, seatIndex, seats) {
 
   return {
     phase: state.phase,
+    gameMode: state.gameMode,
+    marksToWin: state.marksToWin,
     dealer: state.dealer,
     handNumber: state.handNumber,
     bids: state.bids,

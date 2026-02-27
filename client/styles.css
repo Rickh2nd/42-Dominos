@@ -138,6 +138,12 @@ body {
 
 .marks-sub,
 .t42-marks-sub { font-size: 13px; opacity: 0.85; margin-bottom: 6px; }
+.gamewins-caption { margin-top: 2px; }
+.marks-sep {
+  height: 1px;
+  margin: 10px 0 8px;
+  background: rgba(235, 225, 200, 0.16);
+}
 .marks-divider,
 .t42-marks-divider {
   width: 2px;
@@ -375,6 +381,26 @@ body {
   text-align: center;
   pointer-events: none;
   z-index: 2;
+}
+
+.seat-label.t42-active-turn {
+  border-color: rgba(255, 210, 80, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(255, 210, 80, 0.34) inset,
+    0 0 12px rgba(255, 210, 80, 0.28),
+    0 0 20px rgba(255, 210, 80, 0.22);
+}
+
+.seat-label .seat-bid-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font: 700 10px/1.15 "Cinzel", serif;
+  letter-spacing: 0.03em;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(235, 225, 200, 0.18);
+  color: rgba(242, 228, 199, 0.94);
 }
 
 .seat-label .t42-drag-handle {
