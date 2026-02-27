@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>42 Dominio Saloon</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Special+Elite&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="scene-wrap">
+        <canvas id="scene"></canvas>
+        <div id="table-overlay">
+          <div id="status-bar">
+            <div id="status-text">Connecting...</div>
+            <div id="turn-pill">-</div>
+          </div>
+          <div id="hud-42">
+            <div class="hud-block hud-team1">
+              <div class="hud-title">Team 1</div>
+              <div class="hud-value" id="hud-team1-score">0/42</div>
+            </div>
+
+            <div class="hud-block hud-team2">
+              <div class="hud-title">Team 2</div>
+              <div class="hud-value" id="hud-team2-score">0/42</div>
+            </div>
+
+            <div class="hud-block hud-bid">
+              <div class="hud-title">Bid</div>
+              <div class="hud-value" id="hud-bid">--</div>
+            </div>
+          </div>
+          <div id="rule-bubble" class="rule-bubble"></div>
+          <div id="burn-pile-team1" class="burn-pile-panel side-left"></div>
+          <div id="burn-pile-team2" class="burn-pile-panel side-right"></div>
+          <div id="seat-labels"></div>
+        </div>
+      </div>
+
+      <aside id="side-panel">
+        <div class="panel-block brand">
+          <h1>42 Dominio</h1>
+          <p>Smoke room saloon table. 4 seats. Online + CPU fill.</p>
+        </div>
+
+        <details class="panel-block collapsible" open>
+          <summary><h2>Room</h2><span class="condense-btn"></span></summary>
+          <div class="collapse-body">
+            <label for="room-code-input">Room Code</label>
+            <input id="room-code-input" type="text" maxlength="5" placeholder="ABCDE" />
+            <div class="room-actions">
+              <button id="host-room-btn" class="primary">Host Game</button>
+              <button id="join-room-btn">Join Room</button>
+              <button id="copy-room-btn" class="ghost">Copy Link</button>
+            </div>
+            <div id="room-meta" class="room-meta"></div>
+          </div>
+        </details>
+
+        <details class="panel-block collapsible" open id="t42-marks-panel">
+          <summary><h2>Marks</h2><span class="condense-btn"></span></summary>
+          <div class="collapse-body">
+            <div class="marks-grid">
+              <div>
+                <div class="marks-sub">Team1</div>
+                <div id="t42-marks-team1"></div>
+              </div>
+              <div class="marks-divider"></div>
+              <div>
+                <div class="marks-sub">Team2</div>
+                <div id="t42-marks-team2"></div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="panel-block collapsible">
+          <summary><h2>Players</h2><span class="condense-btn"></span></summary>
+          <div class="collapse-body">
+            <label for="name-input">Name</label>
+            <input id="name-input" type="text" maxlength="24" placeholder="Old West handle" />
+            <div id="seat-controls"></div>
+          </div>
+        </details>
+
+        <details class="panel-block collapsible" open>
+          <summary><h2>Game</h2><span class="condense-btn"></span></summary>
+          <div class="collapse-body">
+            <button id="start-game-btn" class="primary">Start Game</button>
+            <button id="restart-btn" class="ghost">Restart Match</button>
+          </div>
+        </details>
+
+        <details class="panel-block collapsible" open>
+          <summary><h2>Bidding</h2><span class="condense-btn"></span></summary>
+          <div class="collapse-body">
+            <div id="bid-controls" class="button-grid"></div>
+          </div>
+        </details>
+
+        <details class="panel-block collapsible" open>
+          <summary><h2>Trump</h2><span class="condense-btn"></span></summary>
+          <div class="collapse-body">
+            <div id="trump-controls" class="button-grid compact"></div>
+          </div>
+        </details>
+
+        <details class="panel-block collapsible" open>
+          <summary><h2>Log</h2><span class="condense-btn"></span></summary>
+          <div class="collapse-body">
+            <div id="event-log" class="log"></div>
+          </div>
+        </details>
+      </aside>
+    </div>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

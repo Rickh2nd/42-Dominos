@@ -1,0 +1,16 @@
+{
+  "name": "domino-42-saloon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fetch:models": "node scripts/fetch_models.mjs",
+    "fetch:humanoid": "node scripts/fetch_humanoid.mjs",
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  }
+}
