@@ -6,6 +6,7 @@ export const MARKS_TO_WIN = 7;
 export const ROUND_WINS_TO_GAME_MARK = 7;
 export const GAME_MODE_STRAIGHT = "straight";
 export const GAME_MODE_FOLLOW_ME = "followMe";
+export const GAME_MODE_SEVENS = "sevens";
 
 export function dominoId(a, b) {
   const lo = Math.min(a, b);
@@ -120,10 +121,72 @@ function compareTilesForTrick(aTile, bTile, leadSuit, trump, mode = GAME_MODE_ST
   return 0;
 }
 
+function sumTile(tile) {
+  return (Number(tile?.a) || 0) + (Number(tile?.b) || 0);
+}
+
+function sevensDistance(tile) {
+  return Math.abs(sumTile(tile) - 7);
+}
+
+function sevensLegalMoves(hand) {
+  if (!Array.isArray(hand) || hand.length === 0) return [];
+  let best = Infinity;
+  for (const tile of hand) {
+    best = Math.min(best, sevensDistance(tile));
+  }
+  return hand.filter((tile) => sevensDistance(tile) === best);
+}
+
+function getPartnerSeat(seat) {
+  return (seat + 2) % 4;
+}
+
+function getActiveSeatsForState(state) {
+  if (state.gameMode !== GAME_MODE_SEVENS) return [0, 1, 2, 3];
+  const inactiveSeat = Number.isInteger(state.sevensInactiveSeat)
+    ? state.sevensInactiveSeat
+    : Number.isInteger(state.sevensSoloSeat)
+      ? getPartnerSeat(state.sevensSoloSeat)
+      : null;
+  if (!Number.isInteger(inactiveSeat)) return [0, 1, 2, 3];
+  return [0, 1, 2, 3].filter((seat) => seat !== inactiveSeat);
+}
+
+function nextActiveSeat(state, currentSeat) {
+  const active = getActiveSeatsForState(state);
+  const idx = active.indexOf(currentSeat);
+  if (idx === -1) return active[0];
+  return active[(idx + 1) % active.length];
+}
+
+function expectedPlaysPerTrick(state) {
+  return getActiveSeatsForState(state).length;
+}
+
+function resolveSevensTrick(trick, soloSeat) {
+  const soloPlay = trick.find((p) => p.seat === soloSeat);
+  if (!soloPlay) return { soloWins: false, winnerSeat: trick[0]?.seat ?? soloSeat };
+
+  const soloDist = sevensDistance(soloPlay.tile);
+  for (const play of trick) {
+    if (play.seat === soloSeat) continue;
+    const dist = sevensDistance(play.tile);
+    if (dist <= soloDist) {
+      return { soloWins: false, winnerSeat: play.seat };
+    }
+  }
+
+  return { soloWins: true, winnerSeat: soloSeat };
+}
+
 function legalTilesForSeat(state, seatIndex) {
   const hand = state.hands[seatIndex] ?? [];
   if (state.phase !== "playing") return [];
   if (state.turn !== seatIndex) return [];
+  const activeSeats = getActiveSeatsForState(state);
+  if (!activeSeats.includes(seatIndex)) return [];
+  if (state.gameMode === GAME_MODE_SEVENS) return sevensLegalMoves(hand);
   if (state.currentTrick.length === 0) return hand.slice();
 
   const leadSuit = state.currentTrickLeadSuit;
@@ -186,7 +249,7 @@ export function createMatch() {
 }
 
 export function startNextHand(state, rng = Math.random) {
-  if (state.gameMode !== GAME_MODE_FOLLOW_ME) state.gameMode = GAME_MODE_STRAIGHT;
+  if (state.gameMode !== GAME_MODE_FOLLOW_ME && state.gameMode !== GAME_MODE_SEVENS) state.gameMode = GAME_MODE_STRAIGHT;
   if (!Number.isFinite(state.marksToWin)) state.marksToWin = MARKS_TO_WIN;
   if (!Number.isFinite(state.roundWinsToGameMark)) state.roundWinsToGameMark = ROUND_WINS_TO_GAME_MARK;
   if (!Array.isArray(state.roundWins)) state.roundWins = Array.isArray(state.marks) ? [...state.marks] : [0, 0];
@@ -212,6 +275,8 @@ export function startNextHand(state, rng = Math.random) {
   state.currentTrick = [];
   state.currentTrickLeadSuit = null;
   state.currentTrickLeaderSeat = null;
+  state.sevensSoloSeat = null;
+  state.sevensInactiveSeat = null;
   state.trickHistory = [];
   state.lastTrickDisplay = null;
   state.wonTricks = [0, 0];
@@ -229,6 +294,10 @@ function allBidsComplete(state) {
   return state.bids.every((b) => b !== null);
 }
 
+function modeMinBid(state) {
+  return state.gameMode === GAME_MODE_SEVENS ? 42 : MIN_BID;
+}
+
 function enterPlayPhaseFromBid(state, trump = null) {
   state.trump = trump;
   state.phase = "playing";
@@ -237,8 +306,20 @@ function enterPlayPhaseFromBid(state, trump = null) {
   state.currentTrick = [];
   state.currentTrickLeadSuit = null;
   state.currentTrickLeaderSeat = state.highestBidder;
+  state.sevensSoloSeat = null;
+  state.sevensInactiveSeat = null;
 
-  const bid = state.highestBid ?? MIN_BID;
+  if (state.gameMode === GAME_MODE_SEVENS) {
+    const solo = state.highestBidder;
+    state.sevensSoloSeat = solo;
+    state.sevensInactiveSeat = getPartnerSeat(solo);
+    state.teamTargets = [7, 7];
+    state.handPoints = [0, 0];
+    state.message = `Sevens mode: Seat ${solo + 1} is solo against Seats ${nextSeat(solo) + 1} and ${nextSeat(nextSeat(solo)) + 1}.`;
+    return;
+  }
+
+  const bid = state.highestBid ?? modeMinBid(state);
   const biddingTeam = TEAM_BY_SEAT[state.highestBidder];
   const defendingTeam = 1 - biddingTeam;
   state.teamTargets = [0, 0];
@@ -253,20 +334,25 @@ function enterPlayPhaseFromBid(state, trump = null) {
 }
 
 function forceDealerBid(state) {
-  state.highestBid = MIN_BID;
+  const forcedBid = modeMinBid(state);
+  state.highestBid = forcedBid;
   state.highestBidder = state.dealer;
-  state.bids[state.dealer] = MIN_BID;
+  state.bids[state.dealer] = forcedBid;
   for (let i = 0; i < 4; i += 1) {
     if (state.bids[i] === null) state.bids[i] = "pass";
   }
-  if (state.gameMode === GAME_MODE_FOLLOW_ME) {
+  if (state.gameMode === GAME_MODE_FOLLOW_ME || state.gameMode === GAME_MODE_SEVENS) {
     enterPlayPhaseFromBid(state, null);
-    state.message = `Dealer forced to bid ${MIN_BID}. Follow Me (no trump). Seat ${state.turn + 1} leads.`;
+    if (state.gameMode === GAME_MODE_SEVENS) {
+      state.message = `Dealer forced to bid ${forcedBid}. Sevens mode is active.`;
+    } else {
+      state.message = `Dealer forced to bid ${forcedBid}. Follow Me (no trump). Seat ${state.turn + 1} leads.`;
+    }
   } else {
     state.phase = "chooseTrump";
     state.turn = state.highestBidder;
     state.bidTurn = null;
-    state.message = `Dealer forced to bid ${MIN_BID}. Choose trump.`;
+    state.message = `Dealer forced to bid ${forcedBid}. Choose trump.`;
   }
 }
 
@@ -278,7 +364,8 @@ export function applyBid(state, seatIndex, bidValue) {
     state.bids[seatIndex] = "pass";
   } else {
     const bid = Number(bidValue);
-    const minAllowed = state.highestBid == null ? MIN_BID : Math.min(MAX_BID, state.highestBid + 1);
+    const baseMin = modeMinBid(state);
+    const minAllowed = state.highestBid == null ? baseMin : Math.min(MAX_BID, state.highestBid + 1);
     if (!Number.isInteger(bid) || bid < minAllowed || bid > MAX_BID) {
       return { ok: false, error: `Bid must be ${minAllowed}-${MAX_BID}` };
     }
@@ -297,9 +384,13 @@ export function applyBid(state, seatIndex, bidValue) {
       forceDealerBid(state);
       return { ok: true };
     }
-    if (state.gameMode === GAME_MODE_FOLLOW_ME) {
+    if (state.gameMode === GAME_MODE_FOLLOW_ME || state.gameMode === GAME_MODE_SEVENS) {
       enterPlayPhaseFromBid(state, null);
-      state.message = `Seat ${state.highestBidder + 1} won bid ${state.highestBid}. Follow Me (no trump).`;
+      if (state.gameMode === GAME_MODE_SEVENS) {
+        state.message = `Seat ${state.highestBidder + 1} won bid ${state.highestBid}. Sevens solo starts.`;
+      } else {
+        state.message = `Seat ${state.highestBidder + 1} won bid ${state.highestBid}. Follow Me (no trump).`;
+      }
     } else {
       state.phase = "chooseTrump";
       state.turn = state.highestBidder;
@@ -316,8 +407,8 @@ export function applyBid(state, seatIndex, bidValue) {
 }
 
 export function applyChooseTrump(state, seatIndex, trump) {
-  if (state.gameMode === GAME_MODE_FOLLOW_ME) {
-    return { ok: false, error: "Follow Me mode uses no trump" };
+  if (state.gameMode === GAME_MODE_FOLLOW_ME || state.gameMode === GAME_MODE_SEVENS) {
+    return { ok: false, error: "This mode uses no trump" };
   }
   if (state.phase !== "chooseTrump") return { ok: false, error: "Not choosing trump" };
   if (state.highestBidder !== seatIndex) return { ok: false, error: "Only winning bidder chooses trump" };
@@ -329,7 +420,7 @@ export function applyChooseTrump(state, seatIndex, trump) {
 
 function finishHand(state, winnerTeam, reason = "target") {
   if (state.phase === "handOver") return;
-  const bid = state.highestBid ?? MIN_BID;
+  const bid = state.highestBid ?? modeMinBid(state);
   const bidder = state.highestBidder ?? state.dealer;
   const biddingTeam = TEAM_BY_SEAT[bidder];
   const made = winnerTeam === biddingTeam;
@@ -406,14 +497,62 @@ export function applyPlayTile(state, seatIndex, tileId) {
   state.currentTrick.push({ seat: seatIndex, tile });
 
   if (state.currentTrick.length === 1) {
-    const trump = state.gameMode === GAME_MODE_FOLLOW_ME ? null : state.trump;
-    state.currentTrickLeadSuit = leadSuitFromLeadTile(tile, trump, state.gameMode);
+    if (state.gameMode === GAME_MODE_SEVENS) {
+      state.currentTrickLeadSuit = null;
+    } else {
+      const trump = state.gameMode === GAME_MODE_FOLLOW_ME ? null : state.trump;
+      state.currentTrickLeadSuit = leadSuitFromLeadTile(tile, trump, state.gameMode);
+    }
     state.currentTrickLeaderSeat = seatIndex;
   }
 
-  if (state.currentTrick.length < 4) {
-    state.turn = nextSeat(seatIndex);
+  const playsPerTrick = expectedPlaysPerTrick(state);
+  if (state.currentTrick.length < playsPerTrick) {
+    state.turn = nextActiveSeat(state, seatIndex);
     state.message = `Seat ${state.turn + 1} to play.`;
+    return { ok: true };
+  }
+
+  if (state.gameMode === GAME_MODE_SEVENS) {
+    const soloSeat = Number.isInteger(state.sevensSoloSeat) ? state.sevensSoloSeat : state.highestBidder;
+    const soloTeam = TEAM_BY_SEAT[soloSeat];
+    const sevensResult = resolveSevensTrick(state.currentTrick, soloSeat);
+    const winningTeam = TEAM_BY_SEAT[sevensResult.winnerSeat];
+    state.wonTiles[winningTeam].push(...state.currentTrick.map((x) => x.tile));
+    state.trickHistory.push({
+      plays: state.currentTrick.map((x) => ({ seat: x.seat, tile: x.tile })),
+      leadSuit: null,
+      winnerSeat: sevensResult.winnerSeat,
+      winningTeam,
+      trickPoints: 1
+    });
+    state.lastTrickDisplay = {
+      plays: state.currentTrick.map((x) => ({ seat: x.seat, tile: x.tile })),
+      leadSuit: null,
+      winnerSeat: sevensResult.winnerSeat
+    };
+
+    state.currentTrick = [];
+    state.currentTrickLeadSuit = null;
+
+    if (!sevensResult.soloWins) {
+      state.handPoints[winningTeam] = state.teamTargets[winningTeam] || 7;
+      finishHand(state, winningTeam, "sevensFail");
+      return { ok: true };
+    }
+
+    state.wonTricks[soloTeam] += 1;
+    state.handPoints = [...state.wonTricks];
+    state.currentTrickLeaderSeat = soloSeat;
+    state.turn = soloSeat;
+    state.message = `Seat ${soloSeat + 1} wins Sevens trick and leads.`;
+
+    if ((state.hands[soloSeat] || []).length === 0) {
+      finishHand(state, soloTeam, "sevensSweep");
+      return { ok: true };
+    }
+
+    state.phase = "trickPause";
     return { ok: true };
   }
 
@@ -488,16 +627,25 @@ export function resetMatch(state) {
 }
 
 export function applySetGameMode(state, mode) {
-  const nextMode = mode === GAME_MODE_FOLLOW_ME ? GAME_MODE_FOLLOW_ME : GAME_MODE_STRAIGHT;
+  const nextMode =
+    mode === GAME_MODE_FOLLOW_ME
+      ? GAME_MODE_FOLLOW_ME
+      : mode === GAME_MODE_SEVENS
+        ? GAME_MODE_SEVENS
+        : GAME_MODE_STRAIGHT;
   if (state.phase !== "lobby" && state.phase !== "handOver") {
     return { ok: false, error: "Game mode can only be changed between hands" };
   }
   state.gameMode = nextMode;
   state.trump = null;
+  state.sevensSoloSeat = null;
+  state.sevensInactiveSeat = null;
   state.message =
     nextMode === GAME_MODE_FOLLOW_ME
       ? "Game mode set to Follow Me (no trump)."
-      : "Game mode set to Straight (trump).";
+      : nextMode === GAME_MODE_SEVENS
+        ? "Game mode set to Sevens (solo vs two)."
+        : "Game mode set to Straight (trump).";
   return { ok: true };
 }
 
@@ -523,6 +671,13 @@ function chooseTrumpForBot(state, seatIndex, difficulty) {
 }
 
 function chooseBidForBot(state, seatIndex, difficulty) {
+  if (state.gameMode === GAME_MODE_SEVENS) {
+    const minAllowed = state.highestBid == null ? modeMinBid(state) : state.highestBid + 1;
+    if (minAllowed > MAX_BID) return null;
+    const forceBidChance = [0.2, 0.3, 0.45, 0.62, 0.78][Math.max(0, Math.min(4, difficulty - 1))];
+    return Math.random() < forceBidChance ? minAllowed : null;
+  }
+
   const hand = state.hands[seatIndex];
   const best = PIPS.map((suit) => estimateSuitStrength(hand, suit)).sort((a, b) => b - a)[0] ?? 0;
   const countPts = hand.reduce((s, t) => s + countValue(t), 0);
@@ -537,7 +692,7 @@ function chooseBidForBot(state, seatIndex, difficulty) {
   if (difficulty === 2 && Math.random() < 0.3) return null;
   if (difficulty === 3 && Math.random() < 0.18) return null;
 
-  const minAllowed = state.highestBid == null ? MIN_BID : state.highestBid + 1;
+  const minAllowed = state.highestBid == null ? modeMinBid(state) : state.highestBid + 1;
   if (target < minAllowed) {
     if (difficulty >= 4 && Math.random() < 0.12 && minAllowed <= Math.min(MAX_BID, diffCap)) return minAllowed;
     return null;
@@ -550,6 +705,16 @@ function choosePlayForBot(state, seatIndex, difficulty) {
   if (!legal.length) return null;
   if (difficulty === 1) return legal[Math.floor(Math.random() * legal.length)].id;
 
+  if (state.gameMode === GAME_MODE_SEVENS) {
+    const scored = legal.map((tile) => {
+      const dist = sevensDistance(tile);
+      const jitter = (Math.random() - 0.5) * (6 - difficulty);
+      return { tile, score: -dist * 2.6 + jitter };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0].tile.id;
+  }
+
   const biddingTeam = state.highestBidder == null ? null : TEAM_BY_SEAT[state.highestBidder];
   const myTeam = TEAM_BY_SEAT[seatIndex];
   const contractPressure = biddingTeam === myTeam ? 1 : -1;
@@ -557,7 +722,7 @@ function choosePlayForBot(state, seatIndex, difficulty) {
   const currentTrickValue = state.currentTrick.reduce((s, p) => s + countValue(p.tile), 0);
   const leadSuit = state.currentTrickLeadSuit;
   const mode = state.gameMode || GAME_MODE_STRAIGHT;
-  const trump = mode === GAME_MODE_FOLLOW_ME ? null : state.trump;
+  const trump = mode === GAME_MODE_FOLLOW_ME || mode === GAME_MODE_SEVENS ? null : state.trump;
 
   const scored = legal.map((tile) => {
     let score = 0;
@@ -640,6 +805,8 @@ export function summarizeStateForSeat(state, seatIndex, seats) {
     currentTrick: state.currentTrick,
     currentTrickLeadSuit: state.currentTrickLeadSuit,
     currentTrickLeaderSeat: state.currentTrickLeaderSeat,
+    sevensSoloSeat: state.sevensSoloSeat,
+    sevensInactiveSeat: state.sevensInactiveSeat,
     trickHistory: state.trickHistory.slice(-7),
     lastTrickDisplay: state.lastTrickDisplay,
     wonTricks: state.wonTricks,

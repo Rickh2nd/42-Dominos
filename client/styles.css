@@ -121,11 +121,53 @@ body {
   top: 52%;
   left: 50%;
   transform: translate(-50%, -50%);
-  min-width: 170px;
+  min-width: 255px;
   text-align: center;
 }
 
-#hud-42 .hud-bid .hud-value { font-size: 18px; line-height: 1.2; }
+#hud-42 .hud-bid .hud-title { display: none; }
+
+#hud-bid {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 2px;
+  text-align: center;
+}
+
+#hud-bid .t42-hud-div {
+  width: 1px;
+  height: 44px;
+  background: rgba(235, 225, 200, 0.22);
+  border-radius: 1px;
+  justify-self: center;
+}
+
+#hud-bid .t42-hud-label {
+  font-family: "Cinzel", serif;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 1px;
+  opacity: 0.95;
+  margin-bottom: 6px;
+}
+
+#hud-bid .t42-hud-value {
+  font-family: "Cinzel", serif;
+  font-weight: 900;
+  font-size: 30px;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+
+#hud-bid .t42-hud-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+}
 
 .t42-marks-mounted {
   margin-top: 8px;

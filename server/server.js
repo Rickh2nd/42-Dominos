@@ -9,6 +9,7 @@ import {
   botChooseAction,
   createMatch,
   GAME_MODE_FOLLOW_ME,
+  GAME_MODE_SEVENS,
   GAME_MODE_STRAIGHT,
   startNextHand,
   summarizeStateForSeat
@@ -388,7 +389,12 @@ function handleClientAction(ws, msg) {
       send(ws, "error", { message: "Only the host can change game mode" });
       return;
     }
-    const requested = msg.mode === GAME_MODE_FOLLOW_ME ? GAME_MODE_FOLLOW_ME : GAME_MODE_STRAIGHT;
+    const requested =
+      msg.mode === GAME_MODE_FOLLOW_ME
+        ? GAME_MODE_FOLLOW_ME
+        : msg.mode === GAME_MODE_SEVENS
+          ? GAME_MODE_SEVENS
+          : GAME_MODE_STRAIGHT;
     const result = applySetGameMode(room.match, requested);
     if (!result.ok) {
       send(ws, "error", { message: result.error });

@@ -41,6 +41,7 @@ const TEAM_BY_SEAT = [0, 1, 0, 1];
 const NAMEPLATE_POS_PREFIX = "T42_NAMEPLATE_POS";
 const MODE_STRAIGHT = "straight";
 const MODE_FOLLOW_ME = "followMe";
+const MODE_SEVENS = "sevens";
 const DEFAULT_MARKS_TO_WIN = 7;
 
 const manualNameplatePositions = new Map();
@@ -56,7 +57,9 @@ const SCORE_STATE = window.__T42_SCORE_STATE__ || {
   gameMarks2: 0,
   bidValue: 0,
   trump: null,
-  mode: MODE_STRAIGHT
+  mode: MODE_STRAIGHT,
+  bidMarks: 0,
+  bidderSeat: null
 };
 window.__T42_SCORE_STATE__ = SCORE_STATE;
 
@@ -66,15 +69,36 @@ const ruleBubbleState = {
   expiresAt: 0
 };
 
+const SCORE_TAUNTS = [
+  "That's not ideal.",
+  "Yeah, no. Don't like that.",
+  "Are you kidding me right now?",
+  "Cool. Great. Awesome.",
+  "This hand is a mess.",
+  "We're really doing this today?",
+  "That one stings.",
+  "Unbelievable.",
+  "I hate everything about that play.",
+  "Wow... just wow."
+];
+
 const AVATAR_VERSION = "20260226-human-v1";
 const IS_DEV_BUILD = /localhost|127\.0\.0\.1/.test(location.hostname);
 const AVATAR_CACHE_TOKEN = IS_DEV_BUILD ? String(Date.now()) : AVATAR_VERSION;
 const ENABLE_EXTERNAL_MODELS = false;
 
 const T42_RULES = window.T42_RULES || {};
-T42_RULES.mode = T42_RULES.mode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
+T42_RULES.mode =
+  T42_RULES.mode === MODE_FOLLOW_ME || T42_RULES.mode === MODE_SEVENS
+    ? T42_RULES.mode
+    : MODE_STRAIGHT;
 T42_RULES.setMode = function setMode(mode) {
-  const nextMode = mode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
+  const nextMode =
+    mode === MODE_FOLLOW_ME
+      ? MODE_FOLLOW_ME
+      : mode === MODE_SEVENS
+        ? MODE_SEVENS
+        : MODE_STRAIGHT;
   T42_RULES.mode = nextMode;
   SCORE_STATE.mode = nextMode;
   if (modeSelectEl && modeSelectEl.value !== nextMode) modeSelectEl.value = nextMode;
@@ -98,6 +122,17 @@ T42_RULES.followMe = {
     if (a === suit) return b;
     if (b === suit) return a;
     return -Infinity;
+  }
+};
+T42_RULES.sevens = {
+  distance(tile) {
+    return Math.abs(((Number(tile?.a) || 0) + (Number(tile?.b) || 0)) - 7);
+  },
+  legalMoves(handTiles) {
+    if (!Array.isArray(handTiles) || handTiles.length === 0) return [];
+    let best = Infinity;
+    for (const t of handTiles) best = Math.min(best, T42_RULES.sevens.distance(t));
+    return handTiles.filter((t) => T42_RULES.sevens.distance(t) === best);
   }
 };
 window.T42_RULES = T42_RULES;
@@ -134,6 +169,7 @@ function connect() {
       capturePlayLogs(state.server, msg);
       state.prevServer = state.server;
       state.server = msg;
+      detectTeamScoring(state.prevServer, state.server);
       state.pendingRoomCode = msg.roomCode || state.pendingRoomCode;
       if (msg.roomCode) {
         roomCodeInputEl.value = msg.roomCode;
@@ -291,6 +327,24 @@ function capturePlayLogs(prev, next) {
   }
 }
 
+function detectTeamScoring(prev, next) {
+  if (!prev || !next) return;
+  const prevHand = prev.handNumber ?? 0;
+  const nextHand = next.handNumber ?? 0;
+  if (prevHand !== nextHand) return;
+  const prevPts = Array.isArray(prev.handPoints) ? prev.handPoints : [0, 0];
+  const nextPts = Array.isArray(next.handPoints) ? next.handPoints : [0, 0];
+  for (let team = 0; team < 2; team += 1) {
+    const delta = (Number(nextPts[team]) || 0) - (Number(prevPts[team]) || 0);
+    if (delta > 0) {
+      window.T42_SCORE?.notifyTeamScored?.(team === 0 ? "team1" : "team2", {
+        deltaPoints: delta,
+        reason: "hand"
+      });
+    }
+  }
+}
+
 nameInputEl.value = loadSavedName();
 nameInputEl.addEventListener("input", () => {
   saveName((nameInputEl.value || "").slice(0, 24));
@@ -358,6 +412,17 @@ function normalizeSeatToLogical(seatNumber, { preferOneBased = false } = {}) {
   return null;
 }
 
+function teamNameForLogicalSeat(logicalSeat) {
+  if (!Number.isInteger(logicalSeat)) return null;
+  return TEAM_BY_SEAT[logicalSeat] === 0 ? "team1" : "team2";
+}
+
+function localTeamName() {
+  const yourSeat = getYourSeat();
+  if (!Number.isInteger(yourSeat)) return null;
+  return teamNameForLogicalSeat(yourSeat);
+}
+
 function bidValueToText(value) {
   if (value == null) return "";
   if (value === "pass") return "Pass";
@@ -372,6 +437,12 @@ function shouldShowBidsForPhase(phase) {
   return phase === "bidding" || phase === "chooseTrump" || phase === "playing" || phase === "trickPause";
 }
 
+function normalizeGameMode(mode) {
+  if (mode === MODE_FOLLOW_ME) return MODE_FOLLOW_ME;
+  if (mode === MODE_SEVENS) return MODE_SEVENS;
+  return MODE_STRAIGHT;
+}
+
 function syncNameplateStateFromServer(s) {
   if (!s) return;
   nameplateTurnSeat = Number.isInteger(s.turn) ? s.turn : null;
@@ -384,6 +455,8 @@ function syncNameplateStateFromServer(s) {
     let out = text;
     if (s.gameMode === MODE_FOLLOW_ME && Number.isInteger(Number(rawBid))) {
       out = `${Number(rawBid)} • Follow Me`;
+    } else if (s.gameMode === MODE_SEVENS && Number.isInteger(Number(rawBid))) {
+      out = `${Number(rawBid)} • Sevens`;
     }
     nameplateBidBySeat.set(logicalSeat, out);
   }
@@ -733,16 +806,39 @@ function renderTally(container, n) {
 }
 
 function formatTrumpForHud(trump, mode) {
-  if (mode === MODE_FOLLOW_ME || trump === "followMe") return "Follow Me";
-  if (trump == null || trump === "") return "Trump -";
-  return `Trump ${trump}`;
+  if (mode === MODE_FOLLOW_ME || trump === "followMe") return "FOLLOW";
+  if (mode === MODE_SEVENS || trump === "sevens") return "SEVENS";
+  if (trump == null || trump === "" || trump === "-") return "-";
+  const n = Number(trump);
+  return Number.isFinite(n) ? String(n) : String(trump).toUpperCase();
+}
+
+function ensureCenterHudLayout() {
+  if (!hudBidEl) return;
+  const bidNode = document.getElementById("t42-bid-value");
+  const trumpNode = document.getElementById("t42-trump-value");
+  if (bidNode && trumpNode) return;
+  hudBidEl.innerHTML = `
+    <div class="t42-hud-col">
+      <div class="t42-hud-label">BID</div>
+      <div id="t42-bid-value" class="t42-hud-value">0</div>
+    </div>
+    <div class="t42-hud-div"></div>
+    <div class="t42-hud-col">
+      <div class="t42-hud-label">TRUMP</div>
+      <div id="t42-trump-value" class="t42-hud-value">-</div>
+    </div>
+  `;
 }
 
 function applyBidTrumpToHUD() {
-  if (!hudBidEl) return;
+  ensureCenterHudLayout();
+  const bidEl = document.getElementById("t42-bid-value");
+  const trumpEl = document.getElementById("t42-trump-value");
+  if (!bidEl || !trumpEl) return;
   const bid = Number.isFinite(Number(SCORE_STATE.bidValue)) ? Number(SCORE_STATE.bidValue) : 0;
-  const trumpText = formatTrumpForHud(SCORE_STATE.trump, SCORE_STATE.mode);
-  hudBidEl.textContent = `${bid} • ${trumpText}`;
+  bidEl.textContent = String(bid);
+  trumpEl.textContent = formatTrumpForHud(SCORE_STATE.trump, SCORE_STATE.mode);
 }
 
 function updateHUD({ team1Pts, team1Target, team2Pts, team2Target, bidValue, trump, gameMode, roundWins1, roundWins2, gameMarks1, gameMarks2, marks1, marks2 }) {
@@ -780,7 +876,7 @@ function updateMarks({ roundWins1, roundWins2, marks1, marks2 }) {
 function updateGameMarks({ gameMarks1, gameMarks2, wins1, wins2, target }) {
   const w1 = Math.max(0, Number(gameMarks1 ?? wins1) || 0);
   const w2 = Math.max(0, Number(gameMarks2 ?? wins2) || 0);
-  const t = Number.isFinite(Number(target)) ? Number(target) : (state.server?.marksToWin ?? DEFAULT_MARKS_TO_WIN);
+  const t = Number.isFinite(Number(target)) ? Number(target) : (state.server?.roundWinsToGameMark ?? DEFAULT_MARKS_TO_WIN);
   const g1 = document.getElementById("t42-gamemarks-team1") || document.getElementById("t42-gamewins-team1");
   const g2 = document.getElementById("t42-gamemarks-team2") || document.getElementById("t42-gamewins-team2");
   SCORE_STATE.gameMarks1 = w1;
@@ -855,13 +951,15 @@ window.T42_UI = {
 };
 
 window.T42_SCORE = window.T42_SCORE || {
-  setBid({ bidValue, trump }) {
+  setBid({ bidValue, trump, bidderSeat, bidMarks } = {}) {
     if (Number.isFinite(Number(bidValue))) SCORE_STATE.bidValue = Number(bidValue);
     if (trump !== undefined) SCORE_STATE.trump = trump;
+    if (Number.isFinite(Number(bidMarks))) SCORE_STATE.bidMarks = Number(bidMarks);
+    if (Number.isFinite(Number(bidderSeat))) SCORE_STATE.bidderSeat = Number(bidderSeat);
     applyBidTrumpToHUD();
   },
   setGameMode(mode) {
-    SCORE_STATE.mode = mode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
+    SCORE_STATE.mode = normalizeGameMode(mode);
     applyBidTrumpToHUD();
   },
   onRoundWin(team) {
@@ -887,6 +985,11 @@ window.T42_SCORE = window.T42_SCORE || {
   },
   setGameMarks({ gameMarks1, gameMarks2 }) {
     updateGameMarks({ gameMarks1, gameMarks2 });
+  },
+  notifyTeamScored(team, meta = {}) {
+    const scoringTeam = team === "team2" ? "team2" : "team1";
+    window.T42_TAUNT?.onTeamScored?.(scoringTeam, meta);
+    document.dispatchEvent(new CustomEvent("t42:teamScored", { detail: { team: scoringTeam, meta } }));
   }
 };
 
@@ -957,7 +1060,7 @@ function createRoundController() {
       this.team2Target = Number(team2Target) || 30;
       this.bidValue = Number(bidValue) || 0;
       if (trump !== undefined) SCORE_STATE.trump = trump;
-      if (gameMode) SCORE_STATE.mode = gameMode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
+      if (gameMode) SCORE_STATE.mode = normalizeGameMode(gameMode);
       this.marks1 = Number(marks1) || 0;
       this.marks2 = Number(marks2) || 0;
       this.roundEnded = !!roundEnded;
@@ -1081,10 +1184,17 @@ function updateHudFromState(s) {
   const gameMarks1 = Number.isFinite(s?.gameMarks?.[0]) ? s.gameMarks[0] : 0;
   const gameMarks2 = Number.isFinite(s?.gameMarks?.[1]) ? s.gameMarks[1] : 0;
   const roundWinsToMark = Number.isFinite(s?.roundWinsToGameMark) ? s.roundWinsToGameMark : DEFAULT_MARKS_TO_WIN;
-  const mode = s.gameMode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
-  const trump = mode === MODE_FOLLOW_ME ? "followMe" : s.trump;
+  const mode = normalizeGameMode(s.gameMode);
+  const trump = mode === MODE_FOLLOW_ME ? "followMe" : mode === MODE_SEVENS ? "sevens" : s.trump;
+  SCORE_STATE.bidMarks = Math.floor((Number(s.highestBid) || 0) / 42);
+  SCORE_STATE.bidderSeat = Number.isInteger(s.highestBidder) ? s.highestBidder : null;
   window.T42_SCORE?.setGameMode?.(mode);
-  window.T42_SCORE?.setBid?.({ bidValue: bid, trump });
+  window.T42_SCORE?.setBid?.({
+    bidValue: bid,
+    trump,
+    bidderSeat: SCORE_STATE.bidderSeat,
+    bidMarks: SCORE_STATE.bidMarks
+  });
   window.T42_SCORE?.setRoundWins?.({ roundWins1, roundWins2 });
   window.T42_SCORE?.setGameMarks?.({ gameMarks1, gameMarks2 });
   window.T42_ROUND?.applyServerSnapshot?.({
@@ -1164,7 +1274,7 @@ function renderUI() {
     return;
   }
 
-  const mode = s.gameMode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
+  const mode = normalizeGameMode(s.gameMode);
   T42_RULES.mode = mode;
   if (modeSelectEl) {
     modeSelectEl.value = mode;
@@ -1175,7 +1285,7 @@ function renderUI() {
     gameWinsTargetLabelEl.textContent = `(First to ${target} = +1 Game Mark)`;
   }
 
-  const modeLabel = mode === MODE_FOLLOW_ME ? "Follow Me" : "Straight";
+  const modeLabel = mode === MODE_FOLLOW_ME ? "Follow Me" : mode === MODE_SEVENS ? "Sevens" : "Straight";
   turnPillEl.textContent = s.turn != null
     ? `Turn: Seat ${s.turn + 1} | ${modeLabel} | Room ${s.roomCode}`
     : `Phase: ${s.phase} | ${modeLabel} | Room ${s.roomCode}`;
@@ -1216,6 +1326,21 @@ function showRuleBubble(logicalSeat, text, ttlMs = 2600) {
   ruleBubbleEl.classList.add("visible");
   updateRuleBubblePosition();
 }
+
+window.T42_TAUNT = window.T42_TAUNT || {
+  enabled: true,
+  onTeamScored(scoringTeam, meta = {}) {
+    if (!this.enabled) return;
+    const localTeam = localTeamName();
+    if (!localTeam) return;
+    if (scoringTeam === localTeam) return;
+    const losingLogicalSeats = [0, 1, 2, 3].filter((seat) => teamNameForLogicalSeat(seat) === localTeam);
+    if (!losingLogicalSeats.length) return;
+    const seat = losingLogicalSeats[Math.floor(Math.random() * losingLogicalSeats.length)];
+    const text = SCORE_TAUNTS[Math.floor(Math.random() * SCORE_TAUNTS.length)];
+    showRuleBubble(seat, text, 1650);
+  }
+};
 
 function renderSeatControls(s) {
   const yourSeat = getYourSeat();
@@ -1271,6 +1396,7 @@ function renderBidControls(s) {
   const canBid = s.phase === "bidding" && s.bidTurn === s.yourSeat;
   const winningBid = Number.isInteger(s.highestBid) ? s.highestBid : null;
   const followMode = s.gameMode === MODE_FOLLOW_ME;
+  const sevensMode = s.gameMode === MODE_SEVENS;
 
   const passBtn = document.createElement("button");
   passBtn.textContent = "Pass";
@@ -1284,9 +1410,16 @@ function renderBidControls(s) {
     modeBtn.classList.add("active-choice");
     modeBtn.disabled = true;
     bidControlsEl.appendChild(modeBtn);
+  } else if (sevensMode) {
+    const modeBtn = document.createElement("button");
+    modeBtn.textContent = "Sevens Solo";
+    modeBtn.classList.add("active-choice");
+    modeBtn.disabled = true;
+    bidControlsEl.appendChild(modeBtn);
   }
 
-  const minBid = s.highestBid == null ? 30 : s.highestBid + 1;
+  const baseMinBid = sevensMode ? 42 : 30;
+  const minBid = s.highestBid == null ? baseMinBid : s.highestBid + 1;
   for (let bid = 30; bid <= 42; bid += 1) {
     const btn = document.createElement("button");
     btn.textContent = String(bid);
@@ -1299,9 +1432,9 @@ function renderBidControls(s) {
 
 function renderTrumpControls(s) {
   trumpControlsEl.innerHTML = "";
-  if (s.gameMode === MODE_FOLLOW_ME) {
+  if (s.gameMode === MODE_FOLLOW_ME || s.gameMode === MODE_SEVENS) {
     const btn = document.createElement("button");
-    btn.textContent = "Follow Me (No Trump)";
+    btn.textContent = s.gameMode === MODE_SEVENS ? "Sevens (No Trump)" : "Follow Me (No Trump)";
     btn.className = "active-choice";
     btn.disabled = true;
     trumpControlsEl.appendChild(btn);
