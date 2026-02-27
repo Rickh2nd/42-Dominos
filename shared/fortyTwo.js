@@ -3,6 +3,7 @@ export const TEAM_BY_SEAT = [0, 1, 0, 1];
 export const MIN_BID = 30;
 export const MAX_BID = 42;
 export const MARKS_TO_WIN = 7;
+export const ROUND_WINS_TO_GAME_MARK = 7;
 export const GAME_MODE_STRAIGHT = "straight";
 export const GAME_MODE_FOLLOW_ME = "followMe";
 
@@ -148,6 +149,7 @@ function emptyHandState() {
     phase: "lobby",
     gameMode: GAME_MODE_STRAIGHT,
     marksToWin: MARKS_TO_WIN,
+    roundWinsToGameMark: ROUND_WINS_TO_GAME_MARK,
     dealer: 0,
     hands: [[], [], [], []],
     bids: [null, null, null, null],
@@ -165,6 +167,8 @@ function emptyHandState() {
     teamTargets: [13, 30],
     turn: null,
     handPoints: [0, 0],
+    roundWins: [0, 0],
+    gameMarks: [0, 0],
     marks: [0, 0],
     scores: [0, 0],
     handNumber: 0,
@@ -184,6 +188,10 @@ export function createMatch() {
 export function startNextHand(state, rng = Math.random) {
   if (state.gameMode !== GAME_MODE_FOLLOW_ME) state.gameMode = GAME_MODE_STRAIGHT;
   if (!Number.isFinite(state.marksToWin)) state.marksToWin = MARKS_TO_WIN;
+  if (!Number.isFinite(state.roundWinsToGameMark)) state.roundWinsToGameMark = ROUND_WINS_TO_GAME_MARK;
+  if (!Array.isArray(state.roundWins)) state.roundWins = Array.isArray(state.marks) ? [...state.marks] : [0, 0];
+  if (!Array.isArray(state.gameMarks)) state.gameMarks = [0, 0];
+  state.marks = [...state.roundWins];
   const deck = shuffleInPlace(makeDeck(), rng);
   const hands = [[], [], [], []];
   for (let i = 0; i < 28; i += 1) {
@@ -320,7 +328,7 @@ export function applyChooseTrump(state, seatIndex, trump) {
 }
 
 function finishHand(state, winnerTeam, reason = "target") {
-  if (state.phase === "handOver" || state.phase === "gameOver") return;
+  if (state.phase === "handOver") return;
   const bid = state.highestBid ?? MIN_BID;
   const bidder = state.highestBidder ?? state.dealer;
   const biddingTeam = TEAM_BY_SEAT[bidder];
@@ -337,17 +345,21 @@ function finishHand(state, winnerTeam, reason = "target") {
     teamTargets: [...state.teamTargets]
   };
 
-  state.marks[winnerTeam] += 1;
-  const marksToWin = Number.isFinite(state.marksToWin) ? state.marksToWin : MARKS_TO_WIN;
-  if (state.marks[winnerTeam] >= marksToWin) {
-    state.phase = "gameOver";
-    state.winningTeam = winnerTeam;
-    state.message = `Team ${winnerTeam + 1} wins the game ${state.marks[winnerTeam]}-${state.marks[1 - winnerTeam]} (first to ${marksToWin}).`;
-    return;
-  }
-
+  if (!Array.isArray(state.roundWins)) state.roundWins = [0, 0];
+  if (!Array.isArray(state.gameMarks)) state.gameMarks = [0, 0];
+  const roundWinsToGameMark = Number.isFinite(state.roundWinsToGameMark) ? state.roundWinsToGameMark : ROUND_WINS_TO_GAME_MARK;
+  state.roundWins[winnerTeam] += 1;
+  state.marks = [...state.roundWins];
   state.phase = "handOver";
-  state.message = `Team ${winnerTeam + 1} reached ${state.handPoints[winnerTeam]}/${state.teamTargets[winnerTeam]} and gets 1 mark.`;
+  state.winningTeam = winnerTeam;
+  if (state.roundWins[winnerTeam] >= roundWinsToGameMark) {
+    state.gameMarks[winnerTeam] += 1;
+    state.roundWins = [0, 0];
+    state.marks = [0, 0];
+    state.message = `Team ${winnerTeam + 1} earns 1 game mark (first to ${roundWinsToGameMark} round wins).`;
+  } else {
+    state.message = `Team ${winnerTeam + 1} wins the round (${state.roundWins[0]}-${state.roundWins[1]} round wins).`;
+  }
   state.dealer = nextSeat(state.dealer);
 }
 
@@ -461,10 +473,16 @@ export function resetMatch(state) {
   const dealer = state.dealer ?? 0;
   const gameMode = state.gameMode || GAME_MODE_STRAIGHT;
   const marksToWin = Number.isFinite(state.marksToWin) ? state.marksToWin : MARKS_TO_WIN;
+  const roundWinsToGameMark = Number.isFinite(state.roundWinsToGameMark) ? state.roundWinsToGameMark : ROUND_WINS_TO_GAME_MARK;
+  const gameMarks = Array.isArray(state.gameMarks) ? [...state.gameMarks] : [0, 0];
   Object.assign(state, createMatch());
   state.dealer = dealer;
   state.gameMode = gameMode;
   state.marksToWin = marksToWin;
+  state.roundWinsToGameMark = roundWinsToGameMark;
+  state.roundWins = [0, 0];
+  state.marks = [0, 0];
+  state.gameMarks = gameMarks;
   startNextHand(state);
   return state;
 }
@@ -610,6 +628,7 @@ export function summarizeStateForSeat(state, seatIndex, seats) {
     phase: state.phase,
     gameMode: state.gameMode,
     marksToWin: state.marksToWin,
+    roundWinsToGameMark: state.roundWinsToGameMark,
     dealer: state.dealer,
     handNumber: state.handNumber,
     bids: state.bids,
@@ -627,6 +646,8 @@ export function summarizeStateForSeat(state, seatIndex, seats) {
     handPoints: state.handPoints,
     teamTargets: state.teamTargets,
     wonTiles: state.wonTiles,
+    roundWins: state.roundWins,
+    gameMarks: state.gameMarks,
     marks: state.marks,
     scores: state.scores,
     lastHandResult: state.lastHandResult,

@@ -47,6 +47,18 @@ const manualNameplatePositions = new Map();
 let activeNameplateDrag = null;
 const nameplateBidBySeat = new Map();
 let nameplateTurnSeat = null;
+let sideMenuCollapsed = false;
+
+const SCORE_STATE = window.__T42_SCORE_STATE__ || {
+  roundWins1: 0,
+  roundWins2: 0,
+  gameMarks1: 0,
+  gameMarks2: 0,
+  bidValue: 0,
+  trump: null,
+  mode: MODE_STRAIGHT
+};
+window.__T42_SCORE_STATE__ = SCORE_STATE;
 
 const ruleBubbleState = {
   text: "",
@@ -64,8 +76,11 @@ T42_RULES.mode = T42_RULES.mode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAI
 T42_RULES.setMode = function setMode(mode) {
   const nextMode = mode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
   T42_RULES.mode = nextMode;
+  SCORE_STATE.mode = nextMode;
   if (modeSelectEl && modeSelectEl.value !== nextMode) modeSelectEl.value = nextMode;
   send("setGameMode", { mode: nextMode });
+  applyBidTrumpToHUD();
+  window.T42_SCORE?.setGameMode?.(nextMode);
   document.dispatchEvent(new CustomEvent("t42:modeChanged", { detail: { mode: nextMode } }));
 };
 T42_RULES.followMe = {
@@ -528,6 +543,31 @@ function dockMarksPanel() {
   }
 }
 
+function setSideMenuCollapsed(collapsed) {
+  const side = document.getElementById("side-panel");
+  const app = document.getElementById("app");
+  if (!side || !app) return;
+  sideMenuCollapsed = !!collapsed;
+  side.classList.toggle("t42-menu-collapsed", sideMenuCollapsed);
+  app.classList.toggle("menu-collapsed", sideMenuCollapsed);
+  const btn = document.getElementById("t42-menu-toggle");
+  if (btn) btn.textContent = sideMenuCollapsed ? "≡" : "×";
+}
+
+function ensureMenuToggleButton() {
+  let btn = document.getElementById("t42-menu-toggle");
+  if (btn) return btn;
+  btn = document.createElement("button");
+  btn.id = "t42-menu-toggle";
+  btn.className = "t42-menu-toggle-btn";
+  btn.type = "button";
+  btn.title = "Toggle Menu";
+  btn.textContent = "×";
+  btn.addEventListener("click", () => setSideMenuCollapsed(!sideMenuCollapsed));
+  document.body.appendChild(btn);
+  return btn;
+}
+
 function normalizeDominoTypos() {
   const root = document.getElementById("side-panel");
   if (!root) return;
@@ -580,34 +620,35 @@ function ensureMarksMount() {
     roomSection.insertAdjacentElement("afterend", section);
   }
 
-  const existingTeam1 = section.querySelector("#t42-marks-team1");
-  const existingTeam2 = section.querySelector("#t42-marks-team2");
-  const ensureGameWins = () => {
-    const hasGameWins = section.querySelector("#t42-gamewins-team1") && section.querySelector("#t42-gamewins-team2");
-    if (hasGameWins) return;
+  const hasRoundWins = (section.querySelector("#t42-roundwins-team1") || section.querySelector("#t42-marks-team1"))
+    && (section.querySelector("#t42-roundwins-team2") || section.querySelector("#t42-marks-team2"));
+  const ensureGameMarks = () => {
+    const hasGameMarks = (section.querySelector("#t42-gamemarks-team1") || section.querySelector("#t42-gamewins-team1"))
+      && (section.querySelector("#t42-gamemarks-team2") || section.querySelector("#t42-gamewins-team2"));
+    if (hasGameMarks) return;
     const body = section.querySelector(".collapse-body") || section;
     const sep = document.createElement("div");
     sep.className = "marks-sep";
     const caption = document.createElement("div");
     caption.className = "marks-sub gamewins-caption";
-    caption.innerHTML = `Game Wins <span id="game-wins-target-label">(First to ${DEFAULT_MARKS_TO_WIN})</span>`;
+    caption.textContent = "Game Marks";
     const grid = document.createElement("div");
     grid.className = "marks-grid gamewins-grid";
     grid.innerHTML = `
       <div>
         <div class="marks-sub">Team1</div>
-        <div id="t42-gamewins-team1"></div>
+        <div id="t42-gamemarks-team1"></div>
       </div>
       <div class="marks-divider"></div>
       <div>
         <div class="marks-sub">Team2</div>
-        <div id="t42-gamewins-team2"></div>
+        <div id="t42-gamemarks-team2"></div>
       </div>
     `;
     body.append(sep, caption, grid);
   };
-  if (existingTeam1 && existingTeam2) {
-    ensureGameWins();
+  if (hasRoundWins) {
+    ensureGameMarks();
     return section;
   }
 
@@ -618,21 +659,22 @@ function ensureMarksMount() {
     mount.id = "t42-marks-mount";
     mount.className = "t42-marks-mounted";
     mount.innerHTML = `
+      <div class="marks-sub gamewins-caption">Round Wins <span id="game-wins-target-label">(First to ${DEFAULT_MARKS_TO_WIN} = +1 Game Mark)</span></div>
       <div class="t42-marks-grid">
         <div>
           <div class="t42-marks-sub">Team1</div>
-          <div id="t42-marks-team1"></div>
+          <div id="t42-roundwins-team1"></div>
         </div>
         <div class="t42-marks-divider"></div>
         <div>
           <div class="t42-marks-sub">Team2</div>
-          <div id="t42-marks-team2"></div>
+          <div id="t42-roundwins-team2"></div>
         </div>
       </div>
     `;
     body.appendChild(mount);
   }
-  ensureGameWins();
+  ensureGameMarks();
   return mount;
 }
 
@@ -642,7 +684,10 @@ function bootMarksMount() {
   const timer = setInterval(() => {
     tries += 1;
     const mount = ensureMarksMount();
-    const hasBoth = !!(mount?.querySelector("#t42-marks-team1") && mount?.querySelector("#t42-marks-team2"));
+    const hasBoth = !!(
+      (mount?.querySelector("#t42-roundwins-team1") || mount?.querySelector("#t42-marks-team1")) &&
+      (mount?.querySelector("#t42-roundwins-team2") || mount?.querySelector("#t42-marks-team2"))
+    );
     if (hasBoth || tries >= 20) clearInterval(timer);
   }, 250);
 }
@@ -687,35 +732,62 @@ function renderTally(container, n) {
   }
 }
 
-function updateHUD({ team1Pts, team1Target, team2Pts, team2Target, bidValue, marks1, marks2 }) {
+function formatTrumpForHud(trump, mode) {
+  if (mode === MODE_FOLLOW_ME || trump === "followMe") return "Follow Me";
+  if (trump == null || trump === "") return "Trump -";
+  return `Trump ${trump}`;
+}
+
+function applyBidTrumpToHUD() {
+  if (!hudBidEl) return;
+  const bid = Number.isFinite(Number(SCORE_STATE.bidValue)) ? Number(SCORE_STATE.bidValue) : 0;
+  const trumpText = formatTrumpForHud(SCORE_STATE.trump, SCORE_STATE.mode);
+  hudBidEl.textContent = `${bid} • ${trumpText}`;
+}
+
+function updateHUD({ team1Pts, team1Target, team2Pts, team2Target, bidValue, trump, gameMode, roundWins1, roundWins2, gameMarks1, gameMarks2, marks1, marks2 }) {
   if (hudTeam1ScoreEl) hudTeam1ScoreEl.textContent = `${team1Pts}/${team1Target}`;
   if (hudTeam2ScoreEl) hudTeam2ScoreEl.textContent = `${team2Pts}/${team2Target}`;
-  if (hudBidEl) hudBidEl.textContent = `${bidValue}`;
-  if (marks1 != null || marks2 != null) {
-    updateMarks({ marks1, marks2 });
+  if (Number.isFinite(Number(bidValue))) SCORE_STATE.bidValue = Number(bidValue);
+  if (trump !== undefined) SCORE_STATE.trump = trump;
+  if (gameMode) SCORE_STATE.mode = gameMode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
+  applyBidTrumpToHUD();
+
+  const nextRound1 = roundWins1 ?? marks1;
+  const nextRound2 = roundWins2 ?? marks2;
+  if (nextRound1 != null || nextRound2 != null) {
+    updateMarks({ roundWins1: nextRound1, roundWins2: nextRound2 });
+  }
+  if (gameMarks1 != null || gameMarks2 != null) {
+    updateGameMarks({ gameMarks1, gameMarks2 });
   }
 }
 
-function updateMarks({ marks1, marks2 }) {
+function updateMarks({ roundWins1, roundWins2, marks1, marks2 }) {
   ensureMarksMount();
-  const m1 = document.getElementById("t42-marks-team1");
-  const m2 = document.getElementById("t42-marks-team2");
-  const safe1 = Math.max(0, Number(marks1) || 0);
-  const safe2 = Math.max(0, Number(marks2) || 0);
+  const m1 = document.getElementById("t42-roundwins-team1") || document.getElementById("t42-marks-team1");
+  const m2 = document.getElementById("t42-roundwins-team2") || document.getElementById("t42-marks-team2");
+  const v1 = roundWins1 ?? marks1;
+  const v2 = roundWins2 ?? marks2;
+  const safe1 = Math.max(0, Number(v1) || 0);
+  const safe2 = Math.max(0, Number(v2) || 0);
+  SCORE_STATE.roundWins1 = safe1;
+  SCORE_STATE.roundWins2 = safe2;
   renderTally(m1, safe1);
   renderTally(m2, safe2);
-  updateGameWins({ wins1: safe1, wins2: safe2, target: state.server?.marksToWin ?? DEFAULT_MARKS_TO_WIN });
 }
 
-function updateGameWins({ wins1, wins2, target }) {
-  const w1 = Math.max(0, Number(wins1) || 0);
-  const w2 = Math.max(0, Number(wins2) || 0);
+function updateGameMarks({ gameMarks1, gameMarks2, wins1, wins2, target }) {
+  const w1 = Math.max(0, Number(gameMarks1 ?? wins1) || 0);
+  const w2 = Math.max(0, Number(gameMarks2 ?? wins2) || 0);
   const t = Number.isFinite(Number(target)) ? Number(target) : (state.server?.marksToWin ?? DEFAULT_MARKS_TO_WIN);
-  const g1 = document.getElementById("t42-gamewins-team1");
-  const g2 = document.getElementById("t42-gamewins-team2");
+  const g1 = document.getElementById("t42-gamemarks-team1") || document.getElementById("t42-gamewins-team1");
+  const g2 = document.getElementById("t42-gamemarks-team2") || document.getElementById("t42-gamewins-team2");
+  SCORE_STATE.gameMarks1 = w1;
+  SCORE_STATE.gameMarks2 = w2;
   renderTally(g1, w1);
   renderTally(g2, w2);
-  if (gameWinsTargetLabelEl) gameWinsTargetLabelEl.textContent = `(First to ${t})`;
+  if (gameWinsTargetLabelEl) gameWinsTargetLabelEl.textContent = `(First to ${t} = +1 Game Mark)`;
 }
 
 function applyTrashTileEl(tileEl, tile) {
@@ -755,7 +827,8 @@ window.T42_UI = {
   updateHUD,
   updateMarks,
   setMarks: updateMarks,
-  setGameWins: updateGameWins,
+  setGameMarks: updateGameMarks,
+  setGameWins: updateGameMarks,
   setTurnBySeat(seatNumber) {
     const logical = normalizeSeatToLogical(seatNumber, { preferOneBased: true });
     if (logical == null) return;
@@ -779,6 +852,42 @@ window.T42_UI = {
   moveWonTilesToBurnPile,
   applyTrashTileEl,
   refreshTrashHighlights: refreshBurnHighlights
+};
+
+window.T42_SCORE = window.T42_SCORE || {
+  setBid({ bidValue, trump }) {
+    if (Number.isFinite(Number(bidValue))) SCORE_STATE.bidValue = Number(bidValue);
+    if (trump !== undefined) SCORE_STATE.trump = trump;
+    applyBidTrumpToHUD();
+  },
+  setGameMode(mode) {
+    SCORE_STATE.mode = mode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
+    applyBidTrumpToHUD();
+  },
+  onRoundWin(team) {
+    if (team === "team1") SCORE_STATE.roundWins1 += 1;
+    if (team === "team2") SCORE_STATE.roundWins2 += 1;
+    const target = Number(state.server?.roundWinsToGameMark) || DEFAULT_MARKS_TO_WIN;
+    if (SCORE_STATE.roundWins1 >= target || SCORE_STATE.roundWins2 >= target) {
+      if (SCORE_STATE.roundWins1 > SCORE_STATE.roundWins2) SCORE_STATE.gameMarks1 += 1;
+      else if (SCORE_STATE.roundWins2 > SCORE_STATE.roundWins1) SCORE_STATE.gameMarks2 += 1;
+      else if (team === "team1") SCORE_STATE.gameMarks1 += 1;
+      else SCORE_STATE.gameMarks2 += 1;
+      SCORE_STATE.roundWins1 = 0;
+      SCORE_STATE.roundWins2 = 0;
+      document.dispatchEvent(new CustomEvent("t42:gameMarkAwarded", {
+        detail: { winner: team, gameMarks1: SCORE_STATE.gameMarks1, gameMarks2: SCORE_STATE.gameMarks2 }
+      }));
+    }
+    updateMarks({ roundWins1: SCORE_STATE.roundWins1, roundWins2: SCORE_STATE.roundWins2 });
+    updateGameMarks({ gameMarks1: SCORE_STATE.gameMarks1, gameMarks2: SCORE_STATE.gameMarks2 });
+  },
+  setRoundWins({ roundWins1, roundWins2 }) {
+    updateMarks({ roundWins1, roundWins2 });
+  },
+  setGameMarks({ gameMarks1, gameMarks2 }) {
+    updateGameMarks({ gameMarks1, gameMarks2 });
+  }
 };
 
 function createRoundController() {
@@ -840,13 +949,15 @@ function createRoundController() {
       this._syncMarks();
     },
 
-    applyServerSnapshot({ team1Pts, team2Pts, team1Target, team2Target, bidValue, marks1, marks2, roundEnded }) {
+    applyServerSnapshot({ team1Pts, team2Pts, team1Target, team2Target, bidValue, trump, gameMode, marks1, marks2, roundEnded }) {
       this._syncingFromServer = true;
       this.team1Pts = Number(team1Pts) || 0;
       this.team2Pts = Number(team2Pts) || 0;
       this.team1Target = Number(team1Target) || 13;
       this.team2Target = Number(team2Target) || 30;
       this.bidValue = Number(bidValue) || 0;
+      if (trump !== undefined) SCORE_STATE.trump = trump;
+      if (gameMode) SCORE_STATE.mode = gameMode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
       this.marks1 = Number(marks1) || 0;
       this.marks2 = Number(marks2) || 0;
       this.roundEnded = !!roundEnded;
@@ -905,7 +1016,9 @@ function createRoundController() {
         team1Target: this.team1Target,
         team2Pts: this.team2Pts,
         team2Target: this.team2Target,
-        bidValue: this.bidValue
+        bidValue: this.bidValue,
+        trump: SCORE_STATE.trump,
+        gameMode: SCORE_STATE.mode
       });
     },
 
@@ -963,26 +1076,38 @@ function updateHudFromState(s) {
     }
   }
 
-  const marks1 = Number.isFinite(s?.marks?.[0]) ? s.marks[0] : Math.floor((s.scores?.[0] ?? 0) / 42);
-  const marks2 = Number.isFinite(s?.marks?.[1]) ? s.marks[1] : Math.floor((s.scores?.[1] ?? 0) / 42);
-  const marksToWin = Number.isFinite(s?.marksToWin) ? s.marksToWin : DEFAULT_MARKS_TO_WIN;
+  const roundWins1 = Number.isFinite(s?.roundWins?.[0]) ? s.roundWins[0] : (Number.isFinite(s?.marks?.[0]) ? s.marks[0] : 0);
+  const roundWins2 = Number.isFinite(s?.roundWins?.[1]) ? s.roundWins[1] : (Number.isFinite(s?.marks?.[1]) ? s.marks[1] : 0);
+  const gameMarks1 = Number.isFinite(s?.gameMarks?.[0]) ? s.gameMarks[0] : 0;
+  const gameMarks2 = Number.isFinite(s?.gameMarks?.[1]) ? s.gameMarks[1] : 0;
+  const roundWinsToMark = Number.isFinite(s?.roundWinsToGameMark) ? s.roundWinsToGameMark : DEFAULT_MARKS_TO_WIN;
+  const mode = s.gameMode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
+  const trump = mode === MODE_FOLLOW_ME ? "followMe" : s.trump;
+  window.T42_SCORE?.setGameMode?.(mode);
+  window.T42_SCORE?.setBid?.({ bidValue: bid, trump });
+  window.T42_SCORE?.setRoundWins?.({ roundWins1, roundWins2 });
+  window.T42_SCORE?.setGameMarks?.({ gameMarks1, gameMarks2 });
   window.T42_ROUND?.applyServerSnapshot?.({
     team1Pts: s.handPoints?.[0] ?? 0,
     team2Pts: s.handPoints?.[1] ?? 0,
     team1Target,
     team2Target,
     bidValue: bid,
-    marks1,
-    marks2,
-    roundEnded: s.phase === "handOver" || s.phase === "gameOver"
+    trump,
+    gameMode: mode,
+    marks1: roundWins1,
+    marks2: roundWins2,
+    roundEnded: s.phase === "handOver"
   });
-  window.T42_UI?.setGameWins?.({ wins1: marks1, wins2: marks2, target: marksToWin });
+  if (gameWinsTargetLabelEl) gameWinsTargetLabelEl.textContent = `(First to ${roundWinsToMark} = +1 Game Mark)`;
 }
 
 function renderUI() {
   const s = state.server;
   dockMarksPanel();
   ensureMarksMount();
+  ensureMenuToggleButton();
+  setSideMenuCollapsed(sideMenuCollapsed);
   normalizeDominoTypos();
   statusTextEl.textContent = s?.message || (state.connected ? "Host or join a room to start." : "Connecting...");
 
@@ -1005,17 +1130,25 @@ function renderUI() {
         team1Target: 13,
         team2Pts: 0,
         team2Target: 30,
-        bidValue: 0
+        bidValue: 0,
+        trump: null,
+        gameMode: MODE_STRAIGHT
       });
     }
-    window.T42_UI?.updateMarks?.({ marks1: 0, marks2: 0 });
-    window.T42_UI?.setGameWins?.({ wins1: 0, wins2: 0, target: DEFAULT_MARKS_TO_WIN });
+    window.T42_UI?.updateMarks?.({ roundWins1: 0, roundWins2: 0 });
+    window.T42_UI?.setGameMarks?.({ gameMarks1: 0, gameMarks2: 0, target: DEFAULT_MARKS_TO_WIN });
     if (modeSelectEl) {
       modeSelectEl.value = MODE_STRAIGHT;
       modeSelectEl.disabled = true;
     }
-    if (gameWinsTargetLabelEl) gameWinsTargetLabelEl.textContent = `(First to ${DEFAULT_MARKS_TO_WIN})`;
+    if (gameWinsTargetLabelEl) gameWinsTargetLabelEl.textContent = `(First to ${DEFAULT_MARKS_TO_WIN} = +1 Game Mark)`;
     T42_RULES.mode = MODE_STRAIGHT;
+    SCORE_STATE.mode = MODE_STRAIGHT;
+    SCORE_STATE.trump = null;
+    SCORE_STATE.bidValue = 0;
+    SCORE_STATE.roundWins1 = 0;
+    SCORE_STATE.roundWins2 = 0;
+    applyBidTrumpToHUD();
     window.T42_ROUND?.applyServerSnapshot?.({
       team1Pts: 0,
       team2Pts: 0,
@@ -1038,8 +1171,8 @@ function renderUI() {
     modeSelectEl.disabled = !(s.isHost && (s.phase === "lobby" || s.phase === "handOver"));
   }
   if (gameWinsTargetLabelEl) {
-    const target = Number.isFinite(s?.marksToWin) ? s.marksToWin : DEFAULT_MARKS_TO_WIN;
-    gameWinsTargetLabelEl.textContent = `(First to ${target})`;
+    const target = Number.isFinite(s?.roundWinsToGameMark) ? s.roundWinsToGameMark : DEFAULT_MARKS_TO_WIN;
+    gameWinsTargetLabelEl.textContent = `(First to ${target} = +1 Game Mark)`;
   }
 
   const modeLabel = mode === MODE_FOLLOW_ME ? "Follow Me" : "Straight";
@@ -2980,6 +3113,7 @@ function animate(now) {
 }
 
 function primeButtons() {
+  ensureMenuToggleButton();
   bootMarksMount();
   renderBidControls({ phase: "lobby", yourSeat: null, highestBid: null });
   renderTrumpControls({ phase: "lobby", yourSeat: null });
@@ -2987,6 +3121,8 @@ function primeButtons() {
     modeSelectEl.value = MODE_STRAIGHT;
     modeSelectEl.disabled = true;
   }
+  setSideMenuCollapsed(false);
+  applyBidTrumpToHUD();
 }
 
 primeButtons();

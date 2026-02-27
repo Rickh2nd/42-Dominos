@@ -404,6 +404,7 @@ function handleClientAction(ws, msg) {
       send(ws, "error", { message: "Only the host can restart the match" });
       return;
     }
+    room.match.roundWins = [0, 0];
     room.match.marks = [0, 0];
     room.match.scores = [0, 0];
     room.match.dealer = (room.match.dealer + 1) % 4;
