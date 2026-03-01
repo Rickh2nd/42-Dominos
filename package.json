@@ -1,0 +1,16 @@
+{
+  "name": "texas-42-domino",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "extract:avatars": "node scripts/extract_avatars.mjs"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "express": "^4.21.2",
+    "three": "^0.177.0",
+    "ws": "^8.18.2"
+  }
+}

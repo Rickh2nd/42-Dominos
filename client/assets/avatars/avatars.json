@@ -1,0 +1,262 @@
+[
+  {
+    "id": "basecharacter",
+    "label": "BaseCharacter",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/BaseCharacter.gltf"
+  },
+  {
+    "id": "bluesoldier-female",
+    "label": "BlueSoldier Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/BlueSoldier_Female.gltf"
+  },
+  {
+    "id": "bluesoldier-male",
+    "label": "BlueSoldier Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/BlueSoldier_Male.gltf"
+  },
+  {
+    "id": "casual-bald",
+    "label": "Casual Bald",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Casual_Bald.gltf"
+  },
+  {
+    "id": "casual-female",
+    "label": "Casual Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Casual_Female.gltf"
+  },
+  {
+    "id": "casual-male",
+    "label": "Casual Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Casual_Male.gltf"
+  },
+  {
+    "id": "casual2-female",
+    "label": "Casual2 Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Casual2_Female.gltf"
+  },
+  {
+    "id": "casual2-male",
+    "label": "Casual2 Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Casual2_Male.gltf"
+  },
+  {
+    "id": "casual3-female",
+    "label": "Casual3 Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Casual3_Female.gltf"
+  },
+  {
+    "id": "casual3-male",
+    "label": "Casual3 Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Casual3_Male.gltf"
+  },
+  {
+    "id": "chef-female",
+    "label": "Chef Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Chef_Female.gltf"
+  },
+  {
+    "id": "chef-hat",
+    "label": "Chef Hat",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Chef_Hat.gltf"
+  },
+  {
+    "id": "chef-male",
+    "label": "Chef Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Chef_Male.gltf"
+  },
+  {
+    "id": "cow",
+    "label": "Cow",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Cow.gltf"
+  },
+  {
+    "id": "cowboy-female",
+    "label": "Cowboy Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Cowboy_Female.gltf"
+  },
+  {
+    "id": "cowboy-hair",
+    "label": "Cowboy Hair",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Cowboy_Hair.gltf"
+  },
+  {
+    "id": "cowboy-male",
+    "label": "Cowboy Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Cowboy_Male.gltf"
+  },
+  {
+    "id": "doctor-female-old",
+    "label": "Doctor Female Old",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Doctor_Female_Old.gltf"
+  },
+  {
+    "id": "doctor-female-young",
+    "label": "Doctor Female Young",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Doctor_Female_Young.gltf"
+  },
+  {
+    "id": "doctor-male-old",
+    "label": "Doctor Male Old",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Doctor_Male_Old.gltf"
+  },
+  {
+    "id": "doctor-male-young",
+    "label": "Doctor Male Young",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Doctor_Male_Young.gltf"
+  },
+  {
+    "id": "elf",
+    "label": "Elf",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Elf.gltf"
+  },
+  {
+    "id": "goblin-female",
+    "label": "Goblin Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Goblin_Female.gltf"
+  },
+  {
+    "id": "goblin-male",
+    "label": "Goblin Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Goblin_Male.gltf"
+  },
+  {
+    "id": "kimono-female",
+    "label": "Kimono Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Kimono_Female.gltf"
+  },
+  {
+    "id": "kimono-male",
+    "label": "Kimono Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Kimono_Male.gltf"
+  },
+  {
+    "id": "knight-golden-female",
+    "label": "Knight Golden Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Knight_Golden_Female.gltf"
+  },
+  {
+    "id": "knight-golden-male",
+    "label": "Knight Golden Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Knight_Golden_Male.gltf"
+  },
+  {
+    "id": "knight-male",
+    "label": "Knight Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Knight_Male.gltf"
+  },
+  {
+    "id": "ninja-female",
+    "label": "Ninja Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Ninja_Female.gltf"
+  },
+  {
+    "id": "ninja-male-hair",
+    "label": "Ninja Male Hair",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Ninja_Male_Hair.gltf"
+  },
+  {
+    "id": "ninja-male",
+    "label": "Ninja Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Ninja_Male.gltf"
+  },
+  {
+    "id": "ninja-sand-female",
+    "label": "Ninja Sand Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Ninja_Sand_Female.gltf"
+  },
+  {
+    "id": "ninja-sand",
+    "label": "Ninja Sand",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Ninja_Sand.gltf"
+  },
+  {
+    "id": "oldclassy-female",
+    "label": "OldClassy Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/OldClassy_Female.gltf"
+  },
+  {
+    "id": "oldclassy-male",
+    "label": "OldClassy Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/OldClassy_Male.gltf"
+  },
+  {
+    "id": "pirate-female",
+    "label": "Pirate Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Pirate_Female.gltf"
+  },
+  {
+    "id": "pirate-male",
+    "label": "Pirate Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Pirate_Male.gltf"
+  },
+  {
+    "id": "pug",
+    "label": "Pug",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Pug.gltf"
+  },
+  {
+    "id": "soldier-female",
+    "label": "Soldier Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Soldier_Female.gltf"
+  },
+  {
+    "id": "soldier-male",
+    "label": "Soldier Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Soldier_Male.gltf"
+  },
+  {
+    "id": "suit-female",
+    "label": "Suit Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Suit_Female.gltf"
+  },
+  {
+    "id": "suit-male",
+    "label": "Suit Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Suit_Male.gltf"
+  },
+  {
+    "id": "viking-female",
+    "label": "Viking Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Viking_Female.gltf"
+  },
+  {
+    "id": "viking-male",
+    "label": "Viking Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Viking_Male.gltf"
+  },
+  {
+    "id": "vikinghelmet",
+    "label": "VikingHelmet",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/VikingHelmet.gltf"
+  },
+  {
+    "id": "witch",
+    "label": "Witch",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Witch.gltf"
+  },
+  {
+    "id": "wizard",
+    "label": "Wizard",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Wizard.gltf"
+  },
+  {
+    "id": "worker-female",
+    "label": "Worker Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Worker_Female.gltf"
+  },
+  {
+    "id": "worker-male",
+    "label": "Worker Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Worker_Male.gltf"
+  },
+  {
+    "id": "zombie-female",
+    "label": "Zombie Female",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Zombie_Female.gltf"
+  },
+  {
+    "id": "zombie-male",
+    "label": "Zombie Male",
+    "url": "/assets/avatars/models/drive-download-20260301T010607Z-1-001/glTF/Zombie_Male.gltf"
+  }
+]

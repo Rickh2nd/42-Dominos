@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Texas 42 Dominoes</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="sceneWrap">
+        <canvas id="gameCanvas"></canvas>
+        <div id="tableHud">
+          <div class="hudBlock hudLeft">
+            <div class="hudLabel">BID</div>
+            <div class="hudValue" id="hudBidValue">-</div>
+          </div>
+          <div class="hudBlock hudRight">
+            <div class="hudLabel">TRUMP</div>
+            <div class="hudValue" id="hudTrumpValue">-</div>
+          </div>
+        </div>
+
+        <div id="nameplates">
+          <div class="nameplate" id="nameplate-0" data-seat="0"></div>
+          <div class="nameplate" id="nameplate-1" data-seat="1"></div>
+          <div class="nameplate" id="nameplate-2" data-seat="2"></div>
+          <div class="nameplate" id="nameplate-3" data-seat="3"></div>
+        </div>
+
+        <button id="panelToggle" title="Toggle menu">☰</button>
+      </div>
+
+      <aside id="sidePanel" class="closed">
+        <header class="panelHeader">
+          <div class="panelTitle">Texas 42</div>
+          <button id="closePanelBtn" class="panelClose" title="Close">×</button>
+        </header>
+
+        <section id="section-room" class="panelSection">
+          <h2>ROOM</h2>
+          <div class="controlRow">
+            <label for="roomIdInput">Room ID</label>
+            <input id="roomIdInput" maxlength="10" placeholder="ABCD12" />
+          </div>
+          <div class="buttonRow">
+            <button id="createRoomBtn">Create Room</button>
+            <button id="joinRoomBtn">Join Room</button>
+            <button id="leaveRoomBtn">Leave</button>
+          </div>
+          <div id="roomStatus" class="smallText"></div>
+        </section>
+
+        <section id="section-players" class="panelSection">
+          <h2>PLAYERS</h2>
+          <div id="seatControls"></div>
+        </section>
+
+        <section id="section-game" class="panelSection">
+          <h2>GAME</h2>
+          <div class="buttonRow">
+            <button id="startGameBtn">Start Game</button>
+            <button id="restartGameBtn">Restart Game</button>
+          </div>
+        </section>
+
+        <section id="section-bidding" class="panelSection">
+          <h2>BIDDING</h2>
+          <div class="buttonRow">
+            <button id="passBidBtn">Pass</button>
+          </div>
+          <div id="bidButtons" class="gridButtons"></div>
+        </section>
+
+        <section id="section-trump" class="panelSection">
+          <h2>TRUMP</h2>
+          <div class="smallText" id="modeHelp">Bid winner chooses mode after bidding.</div>
+          <div id="modeButtons" class="buttonRow">
+            <button data-mode="trumps">TRUMPS</button>
+            <button data-mode="followMe">FOLLOW ME</button>
+            <button data-mode="sevens">SEVENS</button>
+          </div>
+          <div id="trumpButtons" class="gridButtons"></div>
+        </section>
+
+        <section id="section-marks" class="panelSection">
+          <h2>MARKS</h2>
+          <div id="marksText" class="smallText"></div>
+        </section>
+
+        <div id="eventLog" aria-live="polite"></div>
+      </aside>
+    </div>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

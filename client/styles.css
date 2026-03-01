@@ -1,0 +1,358 @@
+:root {
+  --bg-top: #13222d;
+  --bg-bottom: #0b1117;
+  --panel: rgba(16, 23, 33, 0.96);
+  --panel-border: rgba(201, 178, 112, 0.36);
+  --text: #ecf4fb;
+  --subtle: #b8c9dc;
+  --gold: #d4ac55;
+  --gold-strong: #f2cc77;
+  --danger: #e2584f;
+  --success: #56c47e;
+  --chip: rgba(255, 255, 255, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--text);
+  background: radial-gradient(110% 80% at 50% 10%, var(--bg-top), var(--bg-bottom));
+}
+
+#app {
+  position: relative;
+}
+
+#sceneWrap {
+  position: absolute;
+  inset: 0;
+}
+
+#gameCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#tableHud {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: min(680px, 70vw);
+  transform: translate(-50%, -50%);
+  display: flex;
+  justify-content: space-between;
+}
+
+.hudBlock {
+  min-width: 82px;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 14, 21, 0.54);
+  backdrop-filter: blur(2px);
+}
+
+.hudLabel {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--subtle);
+}
+
+.hudValue {
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+#nameplates {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+
+.nameplate {
+  position: absolute;
+  min-width: 130px;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(11, 18, 29, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ecf4fb;
+  font-size: 12px;
+  text-align: center;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.nameplate .seatName {
+  font-weight: 600;
+}
+
+.nameplate .seatMeta {
+  color: var(--subtle);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.nameplate.active {
+  border-color: var(--gold-strong);
+  box-shadow: 0 0 0 1px rgba(242, 204, 119, 0.35), 0 0 15px rgba(242, 204, 119, 0.28);
+  transform: scale(1.03);
+}
+
+#nameplate-0 {
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+}
+
+#nameplate-1 {
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#nameplate-2 {
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+}
+
+#nameplate-3 {
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#panelToggle {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: #f2f8ff;
+  background: rgba(12, 18, 27, 0.7);
+  cursor: pointer;
+  z-index: 4;
+}
+
+#sidePanel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: min(380px, 92vw);
+  background: var(--panel);
+  border-left: 1px solid var(--panel-border);
+  backdrop-filter: blur(4px);
+  padding: 12px;
+  transform: translateX(0%);
+  transition: transform 220ms ease;
+  z-index: 5;
+  overflow-y: auto;
+}
+
+#sidePanel.closed {
+  transform: translateX(100%);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.panelTitle {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.panelClose {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+}
+
+.panelSection {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.panelSection h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.11em;
+  color: var(--gold);
+}
+
+.controlRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.controlRow label {
+  font-size: 11px;
+  color: var(--subtle);
+}
+
+input,
+select,
+button {
+  font: inherit;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(5, 10, 16, 0.68);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 8px;
+}
+
+button {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border-radius: 9px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gridButtons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#seatControls {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.seatCard {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.seatTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.seatTitle {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.seatBadge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--chip);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.seatBadge.cpu {
+  color: #ffd7a1;
+}
+
+.seatBadge.human {
+  color: #aad8ff;
+}
+
+.seatGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.smallText {
+  font-size: 12px;
+  color: var(--subtle);
+}
+
+#eventLog {
+  margin-top: 10px;
+  min-height: 22px;
+  font-size: 12px;
+  color: #fff0ce;
+}
+
+.hidden {
+  display: none !important;
+}
+
+@media (max-width: 920px) {
+  #tableHud {
+    width: min(86vw, 480px);
+  }
+
+  .nameplate {
+    min-width: 110px;
+    font-size: 11px;
+  }
+
+  #nameplate-1,
+  #nameplate-3 {
+    top: auto;
+    bottom: 70px;
+    transform: none;
+  }
+
+  #nameplate-1 {
+    right: 8px;
+  }
+
+  #nameplate-3 {
+    left: 8px;
+  }
+}
