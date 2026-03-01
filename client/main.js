@@ -22,7 +22,6 @@ const hostRoomBtn = document.getElementById("host-room-btn");
 const joinRoomBtn = document.getElementById("join-room-btn");
 const copyRoomBtn = document.getElementById("copy-room-btn");
 const roomMetaEl = document.getElementById("room-meta");
-const modeSelectEl = document.getElementById("mode-select");
 const gameWinsTargetLabelEl = document.getElementById("game-wins-target-label");
 
 const state = {
@@ -101,9 +100,9 @@ T42_RULES.setMode = function setMode(mode) {
         : MODE_STRAIGHT;
   T42_RULES.mode = nextMode;
   SCORE_STATE.mode = nextMode;
-  if (modeSelectEl && modeSelectEl.value !== nextMode) modeSelectEl.value = nextMode;
   send("setGameMode", { mode: nextMode });
   applyBidTrumpToHUD();
+  refreshBurnHighlights(document, ".burn-tile");
   window.T42_SCORE?.setGameMode?.(nextMode);
   document.dispatchEvent(new CustomEvent("t42:modeChanged", { detail: { mode: nextMode } }));
 };
@@ -377,9 +376,6 @@ copyRoomBtn.addEventListener("click", async () => {
     pushLog(`Room link: ${link}`);
   }
   renderUI();
-});
-modeSelectEl?.addEventListener("change", () => {
-  window.T42_RULES?.setMode?.(modeSelectEl.value);
 });
 
 function getYourSeat() {
@@ -846,8 +842,9 @@ function updateHUD({ team1Pts, team1Target, team2Pts, team2Target, bidValue, tru
   if (hudTeam2ScoreEl) hudTeam2ScoreEl.textContent = `${team2Pts}/${team2Target}`;
   if (Number.isFinite(Number(bidValue))) SCORE_STATE.bidValue = Number(bidValue);
   if (trump !== undefined) SCORE_STATE.trump = trump;
-  if (gameMode) SCORE_STATE.mode = gameMode === MODE_FOLLOW_ME ? MODE_FOLLOW_ME : MODE_STRAIGHT;
+  if (gameMode) SCORE_STATE.mode = normalizeGameMode(gameMode);
   applyBidTrumpToHUD();
+  refreshBurnHighlights(document, ".burn-tile");
 
   const nextRound1 = roundWins1 ?? marks1;
   const nextRound2 = roundWins2 ?? marks2;
@@ -890,6 +887,14 @@ function applyTrashTileEl(tileEl, tile) {
   if (!tileEl || !tile) return;
   if (isCountTileBySum(tile.a, tile.b)) tileEl.classList.add("count-tile");
   else tileEl.classList.remove("count-tile");
+  const trumpValue = Number(SCORE_STATE.trump);
+  const isStraightMode = normalizeGameMode(SCORE_STATE.mode) === MODE_STRAIGHT;
+  const isTrumpTile =
+    isStraightMode &&
+    Number.isFinite(trumpValue) &&
+    (Number(tile.a) === trumpValue || Number(tile.b) === trumpValue);
+  if (isTrumpTile) tileEl.classList.add("trump-tile");
+  else tileEl.classList.remove("trump-tile");
 }
 
 function refreshBurnHighlights(rootSelector = document, tileSelector = ".burn-tile") {
@@ -957,10 +962,12 @@ window.T42_SCORE = window.T42_SCORE || {
     if (Number.isFinite(Number(bidMarks))) SCORE_STATE.bidMarks = Number(bidMarks);
     if (Number.isFinite(Number(bidderSeat))) SCORE_STATE.bidderSeat = Number(bidderSeat);
     applyBidTrumpToHUD();
+    refreshBurnHighlights(document, ".burn-tile");
   },
   setGameMode(mode) {
     SCORE_STATE.mode = normalizeGameMode(mode);
     applyBidTrumpToHUD();
+    refreshBurnHighlights(document, ".burn-tile");
   },
   onRoundWin(team) {
     if (team === "team1") SCORE_STATE.roundWins1 += 1;
@@ -1247,10 +1254,6 @@ function renderUI() {
     }
     window.T42_UI?.updateMarks?.({ roundWins1: 0, roundWins2: 0 });
     window.T42_UI?.setGameMarks?.({ gameMarks1: 0, gameMarks2: 0, target: DEFAULT_MARKS_TO_WIN });
-    if (modeSelectEl) {
-      modeSelectEl.value = MODE_STRAIGHT;
-      modeSelectEl.disabled = true;
-    }
     if (gameWinsTargetLabelEl) gameWinsTargetLabelEl.textContent = `(First to ${DEFAULT_MARKS_TO_WIN} = +1 Game Mark)`;
     T42_RULES.mode = MODE_STRAIGHT;
     SCORE_STATE.mode = MODE_STRAIGHT;
@@ -1276,10 +1279,6 @@ function renderUI() {
 
   const mode = normalizeGameMode(s.gameMode);
   T42_RULES.mode = mode;
-  if (modeSelectEl) {
-    modeSelectEl.value = mode;
-    modeSelectEl.disabled = !(s.isHost && (s.phase === "lobby" || s.phase === "handOver"));
-  }
   if (gameWinsTargetLabelEl) {
     const target = Number.isFinite(s?.roundWinsToGameMark) ? s.roundWinsToGameMark : DEFAULT_MARKS_TO_WIN;
     gameWinsTargetLabelEl.textContent = `(First to ${target} = +1 Game Mark)`;
@@ -1430,25 +1429,69 @@ function renderBidControls(s) {
   }
 }
 
+function canSetGameModeFromClient(s) {
+  return !!(s?.isHost && (s.phase === "lobby" || s.phase === "handOver"));
+}
+
 function renderTrumpControls(s) {
   trumpControlsEl.innerHTML = "";
-  if (s.gameMode === MODE_FOLLOW_ME || s.gameMode === MODE_SEVENS) {
+  const gameMode = normalizeGameMode(s?.gameMode);
+  const canSetMode = canSetGameModeFromClient(s);
+
+  const wrap = document.createElement("div");
+  wrap.className = "trump-mode-wrap";
+
+  const modeTitle = document.createElement("div");
+  modeTitle.className = "trump-mode-title";
+  modeTitle.textContent = "Game Mode";
+  wrap.appendChild(modeTitle);
+
+  const modeRow = document.createElement("div");
+  modeRow.className = "trump-mode-row";
+  const modeButtons = [
+    { key: MODE_STRAIGHT, label: "Straight" },
+    { key: MODE_FOLLOW_ME, label: "Follow Me" },
+    { key: MODE_SEVENS, label: "Sevens" }
+  ];
+  modeButtons.forEach((modeButton) => {
     const btn = document.createElement("button");
-    btn.textContent = s.gameMode === MODE_SEVENS ? "Sevens (No Trump)" : "Follow Me (No Trump)";
+    btn.type = "button";
+    btn.textContent = modeButton.label;
+    if (gameMode === modeButton.key) btn.classList.add("active-choice");
+    btn.disabled = !canSetMode;
+    btn.onclick = () => window.T42_RULES?.setMode?.(modeButton.key);
+    modeRow.appendChild(btn);
+  });
+  wrap.appendChild(modeRow);
+
+  const divider = document.createElement("div");
+  divider.className = "trump-mode-divider";
+  wrap.appendChild(divider);
+
+  const trumpGrid = document.createElement("div");
+  trumpGrid.className = "trump-pip-grid";
+
+  if (gameMode === MODE_FOLLOW_ME || gameMode === MODE_SEVENS) {
+    const btn = document.createElement("button");
+    btn.textContent = gameMode === MODE_SEVENS ? "Sevens (No Trump)" : "Follow Me (No Trump)";
     btn.className = "active-choice";
     btn.disabled = true;
-    trumpControlsEl.appendChild(btn);
-    return;
+    trumpGrid.appendChild(btn);
+  } else {
+    const canChoose = s.phase === "chooseTrump" && s.highestBidder === s.yourSeat;
+    for (let trump = 0; trump <= 6; trump += 1) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = trumpLabel(trump);
+      if (s.trump === trump) btn.classList.add("active-choice");
+      btn.disabled = !canChoose;
+      btn.onclick = () => sendAction({ type: "chooseTrump", trump });
+      trumpGrid.appendChild(btn);
+    }
   }
-  const canChoose = s.phase === "chooseTrump" && s.highestBidder === s.yourSeat;
-  for (let trump = 0; trump <= 6; trump += 1) {
-    const btn = document.createElement("button");
-    btn.textContent = trumpLabel(trump);
-    if (s.trump === trump) btn.classList.add("active-choice");
-    btn.disabled = !canChoose;
-    btn.onclick = () => sendAction({ type: "chooseTrump", trump });
-    trumpControlsEl.appendChild(btn);
-  }
+
+  wrap.appendChild(trumpGrid);
+  trumpControlsEl.appendChild(wrap);
 }
 
 function renderLog() {
@@ -3249,11 +3292,7 @@ function primeButtons() {
   ensureMenuToggleButton();
   bootMarksMount();
   renderBidControls({ phase: "lobby", yourSeat: null, highestBid: null });
-  renderTrumpControls({ phase: "lobby", yourSeat: null });
-  if (modeSelectEl) {
-    modeSelectEl.value = MODE_STRAIGHT;
-    modeSelectEl.disabled = true;
-  }
+  renderTrumpControls({ phase: "lobby", yourSeat: null, isHost: false, gameMode: MODE_STRAIGHT });
   setSideMenuCollapsed(false);
   applyBidTrumpToHUD();
 }

@@ -131,14 +131,14 @@ body {
   display: grid;
   grid-template-columns: 1fr 1px 1fr;
   align-items: center;
-  gap: 14px;
-  padding: 6px 2px;
+  gap: 10px;
+  padding: 4px 2px;
   text-align: center;
 }
 
 #hud-bid .t42-hud-div {
   width: 1px;
-  height: 44px;
+  height: 36px;
   background: rgba(235, 225, 200, 0.22);
   border-radius: 1px;
   justify-self: center;
@@ -147,16 +147,16 @@ body {
 #hud-bid .t42-hud-label {
   font-family: "Cinzel", serif;
   font-weight: 800;
-  font-size: 15px;
+  font-size: 14px;
   letter-spacing: 1px;
   opacity: 0.95;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 #hud-bid .t42-hud-value {
   font-family: "Cinzel", serif;
   font-weight: 900;
-  font-size: 30px;
+  font-size: 22px;
   letter-spacing: 1px;
   line-height: 1;
 }
@@ -353,8 +353,8 @@ body {
 }
 
 .burn-domino {
-  width: 30px;
-  height: 56px;
+  width: 33px;
+  height: 62px;
   position: relative;
   border-radius: 6px;
   border: 1px solid rgba(104, 80, 55, 0.88);
@@ -400,11 +400,16 @@ body {
 
 .burn-pip {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #21170f;
   box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+}
+
+.burn-tile.trump-tile .burn-pip {
+  background: rgba(255, 0, 255, 0.95);
+  box-shadow: 0 0 0 0.5px rgba(46, 0, 46, 0.45);
 }
 
 .burn-pip.tl { left: 20%; top: 18%; }
@@ -648,6 +653,41 @@ button.active-choice:disabled {
   gap: 6px;
 }
 .button-grid.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.trump-mode-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.trump-mode-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.trump-mode-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.trump-mode-row button {
+  font-size: 12px;
+  padding: 8px 6px;
+}
+
+.trump-mode-divider {
+  height: 1px;
+  margin: 2px 0;
+  background: rgba(235, 225, 200, 0.14);
+}
+
+.trump-pip-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
 
 .log {
   min-height: 100px;
