@@ -42,6 +42,34 @@ const MODE_STRAIGHT = "straight";
 const MODE_FOLLOW_ME = "followMe";
 const MODE_SEVENS = "sevens";
 const DEFAULT_MARKS_TO_WIN = 7;
+const CHAMP_HAND_WINS_TARGET = 7;
+const FLOW_PHASES = [
+  {
+    key: "lobby",
+    label: "Host / Join",
+    desc: "Host a room or join using a room code. Once connected, fill seats."
+  },
+  {
+    key: "seats",
+    label: "Fill Seats / Start Game",
+    desc: "Take seats (players/CPU). When ready, press Start Game."
+  },
+  {
+    key: "bidding",
+    label: "Bids",
+    desc: "Place bids. Bids display on player nameplates."
+  },
+  {
+    key: "trumpPick",
+    label: "Pick Trump / Mode",
+    desc: "Bid winner picks trump or mode before play starts."
+  },
+  {
+    key: "playing",
+    label: "Playing",
+    desc: "Play tricks. New hands loop back to bidding."
+  }
+];
 
 const manualNameplatePositions = new Map();
 let activeNameplateDrag = null;
@@ -61,6 +89,14 @@ const SCORE_STATE = window.__T42_SCORE_STATE__ || {
   bidderSeat: null
 };
 window.__T42_SCORE_STATE__ = SCORE_STATE;
+const FLOW_STATE = window.__T42_FLOW_STATE__ || { phase: "lobby", minimized: false };
+window.__T42_FLOW_STATE__ = FLOW_STATE;
+const CHAMP_STATE = window.__T42_CHAMP_STATE__ || {
+  team1: 0,
+  team2: 0,
+  lastAppliedHandKey: null
+};
+window.__T42_CHAMP_STATE__ = CHAMP_STATE;
 
 const ruleBubbleState = {
   text: "",
@@ -169,6 +205,7 @@ function connect() {
       state.prevServer = state.server;
       state.server = msg;
       detectTeamScoring(state.prevServer, state.server);
+      detectHandWinTransition(state.prevServer, state.server);
       state.pendingRoomCode = msg.roomCode || state.pendingRoomCode;
       if (msg.roomCode) {
         roomCodeInputEl.value = msg.roomCode;
@@ -344,6 +381,196 @@ function detectTeamScoring(prev, next) {
   }
 }
 
+function flowIndexOf(key) {
+  const index = FLOW_PHASES.findIndex((phase) => phase.key === key);
+  return index >= 0 ? index : 0;
+}
+
+function ensureFlowOverlay() {
+  let overlay = document.getElementById("t42flow_overlay");
+  let pill = document.getElementById("t42flow_pill");
+  if (overlay && pill) return { overlay, pill };
+
+  overlay = document.createElement("div");
+  overlay.id = "t42flow_overlay";
+  overlay.innerHTML = `
+    <div id="t42flow_card">
+      <div id="t42flow_head">
+        <div id="t42flow_title">Texas 42 - Flow</div>
+        <button id="t42flow_min" type="button">-</button>
+      </div>
+      <div id="t42flow_body">
+        <div id="t42flow_step">Step</div>
+        <div id="t42flow_desc">...</div>
+        <div class="t42flow_actions">
+          <button class="t42flow_btn" id="t42flow_back" type="button">Back</button>
+          <button class="t42flow_btn primary" id="t42flow_next" type="button">Next</button>
+        </div>
+        <div class="t42flow_progress" aria-hidden="true">
+          <div class="t42flow_dot" id="t42flow_dot_0"></div>
+          <div class="t42flow_dot" id="t42flow_dot_1"></div>
+          <div class="t42flow_dot" id="t42flow_dot_2"></div>
+          <div class="t42flow_dot" id="t42flow_dot_3"></div>
+          <div class="t42flow_dot" id="t42flow_dot_4"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  pill = document.createElement("div");
+  pill.id = "t42flow_pill";
+  pill.title = "Open flow menu";
+  pill.textContent = "≡";
+  document.body.appendChild(pill);
+  return { overlay, pill };
+}
+
+function setFlowMinimized(minimized) {
+  const { overlay, pill } = ensureFlowOverlay();
+  FLOW_STATE.minimized = !!minimized;
+  overlay.style.display = FLOW_STATE.minimized ? "none" : "block";
+  pill.style.display = FLOW_STATE.minimized ? "flex" : "none";
+}
+
+function renderFlowOverlay() {
+  ensureFlowOverlay();
+  const idx = flowIndexOf(FLOW_STATE.phase);
+  const phase = FLOW_PHASES[idx];
+  const stepEl = document.getElementById("t42flow_step");
+  const descEl = document.getElementById("t42flow_desc");
+  const backEl = document.getElementById("t42flow_back");
+  const nextEl = document.getElementById("t42flow_next");
+  if (!stepEl || !descEl || !backEl || !nextEl) return;
+  stepEl.textContent = phase.label;
+  descEl.textContent = phase.desc;
+  backEl.disabled = idx === 0;
+  nextEl.textContent = idx >= FLOW_PHASES.length - 1 ? "Close" : "Next";
+  for (let i = 0; i < FLOW_PHASES.length; i += 1) {
+    const dotEl = document.getElementById(`t42flow_dot_${i}`);
+    if (!dotEl) continue;
+    dotEl.classList.toggle("on", i <= idx);
+  }
+}
+
+function inferFlowPhaseFromState(s) {
+  if (!s || !s.roomCode) return "lobby";
+  if (s.phase === "lobby") return "seats";
+  if (s.phase === "bidding") return "bidding";
+  if (s.phase === "chooseTrump") return "trumpPick";
+  return "playing";
+}
+
+const T42_FLOW = window.T42_FLOW || {};
+T42_FLOW.setPhase = function setPhase(phaseKey) {
+  if (!FLOW_PHASES.some((phase) => phase.key === phaseKey)) return;
+  FLOW_STATE.phase = phaseKey;
+  renderFlowOverlay();
+};
+T42_FLOW.next = function next() {
+  const idx = flowIndexOf(FLOW_STATE.phase);
+  if (idx >= FLOW_PHASES.length - 1) {
+    setFlowMinimized(true);
+    return;
+  }
+  T42_FLOW.setPhase(FLOW_PHASES[idx + 1].key);
+};
+T42_FLOW.back = function back() {
+  const idx = flowIndexOf(FLOW_STATE.phase);
+  if (idx <= 0) return;
+  T42_FLOW.setPhase(FLOW_PHASES[idx - 1].key);
+};
+T42_FLOW.syncFromState = function syncFromState(s) {
+  T42_FLOW.setPhase(inferFlowPhaseFromState(s));
+};
+window.T42_FLOW = T42_FLOW;
+
+function renderNameplateCrowns() {
+  const labels = seatLabelsEl.querySelectorAll(".seat-label");
+  labels.forEach((el) => {
+    const logicalSeat = Number(el.dataset.logicalSeat);
+    const teamName = teamNameForLogicalSeat(logicalSeat);
+    const showCrown = teamName
+      ? Number(CHAMP_STATE[teamName] || 0) >= CHAMP_HAND_WINS_TARGET
+      : false;
+    const nameText = el.querySelector(".seat-name-text") || el.firstElementChild || el;
+    let crownEl = nameText?.querySelector?.(".t42_crown");
+    if (showCrown) {
+      if (!crownEl && nameText) {
+        crownEl = document.createElement("span");
+        crownEl.className = "t42_crown";
+        crownEl.textContent = "👑";
+        nameText.appendChild(crownEl);
+      }
+    } else if (crownEl) {
+      crownEl.remove();
+    }
+  });
+}
+
+const T42_CHAMPS = window.T42_CHAMPS || {};
+T42_CHAMPS.onHandWin = function onHandWin(team, options = {}) {
+  const normalized = team === "team2" ? "team2" : "team1";
+  const handKey = options?.handKey ? String(options.handKey) : null;
+  if (handKey && CHAMP_STATE.lastAppliedHandKey === handKey) return;
+  if (handKey) CHAMP_STATE.lastAppliedHandKey = handKey;
+  CHAMP_STATE[normalized] = (Number(CHAMP_STATE[normalized]) || 0) + 1;
+  window.T42_FLOW?.setPhase?.("bidding");
+  renderNameplateCrowns();
+  document.dispatchEvent(new CustomEvent("t42:handWin", {
+    detail: { team: normalized, wins1: CHAMP_STATE.team1, wins2: CHAMP_STATE.team2 }
+  }));
+};
+T42_CHAMPS.setHandWins = function setHandWins({ team1, team2 } = {}) {
+  if (Number.isFinite(Number(team1))) CHAMP_STATE.team1 = Number(team1);
+  if (Number.isFinite(Number(team2))) CHAMP_STATE.team2 = Number(team2);
+  renderNameplateCrowns();
+};
+window.T42_CHAMPS = T42_CHAMPS;
+
+function detectHandWinTransition(prev, next) {
+  if (!prev || !next || next.phase !== "handOver" || !Number.isInteger(next.winningTeam)) return;
+  const team = next.winningTeam === 1 ? "team2" : "team1";
+  const handKey = `${next.roomCode || "ROOM"}:${next.handNumber ?? -1}:${next.winningTeam}`;
+  const prevSame =
+    prev?.phase === "handOver"
+    && (prev.handNumber ?? -1) === (next.handNumber ?? -1)
+    && prev.winningTeam === next.winningTeam;
+  if (prevSame) return;
+  window.T42_CHAMPS?.onHandWin?.(team, { handKey });
+}
+
+function bootFlowOverlay() {
+  const { pill } = ensureFlowOverlay();
+  const backBtn = document.getElementById("t42flow_back");
+  const nextBtn = document.getElementById("t42flow_next");
+  const minBtn = document.getElementById("t42flow_min");
+  if (backBtn && !backBtn.dataset.bound) {
+    backBtn.dataset.bound = "1";
+    backBtn.addEventListener("click", () => window.T42_FLOW?.back?.());
+  }
+  if (nextBtn && !nextBtn.dataset.bound) {
+    nextBtn.dataset.bound = "1";
+    nextBtn.addEventListener("click", () => window.T42_FLOW?.next?.());
+  }
+  if (minBtn && !minBtn.dataset.bound) {
+    minBtn.dataset.bound = "1";
+    minBtn.addEventListener("click", () => setFlowMinimized(true));
+  }
+  if (pill && !pill.dataset.bound) {
+    pill.dataset.bound = "1";
+    pill.addEventListener("click", () => setFlowMinimized(false));
+  }
+  if (!bootFlowOverlay._eventsBound) {
+    document.addEventListener("t42:handStart", () => window.T42_FLOW?.setPhase?.("bidding"));
+    document.addEventListener("t42:awaitTrump", () => window.T42_FLOW?.setPhase?.("trumpPick"));
+    document.addEventListener("t42:trumpChosen", () => window.T42_FLOW?.setPhase?.("playing"));
+    bootFlowOverlay._eventsBound = true;
+  }
+  renderFlowOverlay();
+  setFlowMinimized(FLOW_STATE.minimized);
+}
+
 nameInputEl.value = loadSavedName();
 nameInputEl.addEventListener("input", () => {
   saveName((nameInputEl.value || "").slice(0, 24));
@@ -354,14 +581,19 @@ nameInputEl.addEventListener("change", () => {
   send("setName", { name });
 });
 
-startGameBtn.addEventListener("click", () => send("startMatch"));
+startGameBtn.addEventListener("click", () => {
+  window.T42_FLOW?.setPhase?.("bidding");
+  send("startMatch");
+});
 restartBtn.addEventListener("click", () => send("restartMatch"));
 hostRoomBtn.addEventListener("click", () => {
+  window.T42_FLOW?.setPhase?.("seats");
   send("createRoom", { name: getEnteredName() });
 });
 joinRoomBtn.addEventListener("click", () => {
   const code = roomCodeInputEl.value.trim().toUpperCase();
   if (!code) return;
+  window.T42_FLOW?.setPhase?.("seats");
   state.pendingRoomCode = code;
   send("joinRoom", { roomCode: code, name: getEnteredName() });
 });
@@ -480,6 +712,7 @@ function applyNameplateDecorations() {
     if (logicalSeat === nameplateTurnSeat) el.classList.add("t42-active-turn");
     else el.classList.remove("t42-active-turn");
   });
+  renderNameplateCrowns();
 }
 
 function trumpLabel(n) {
@@ -1227,6 +1460,7 @@ function renderUI() {
   setSideMenuCollapsed(sideMenuCollapsed);
   normalizeDominoTypos();
   statusTextEl.textContent = s?.message || (state.connected ? "Host or join a room to start." : "Connecting...");
+  window.T42_FLOW?.syncFromState?.(s);
 
   if (!s) {
     turnPillEl.textContent = state.connected ? "No room joined" : "Offline";
@@ -1379,7 +1613,10 @@ function renderSeatControls(s) {
     } else if (seat.kind === "bot") {
       btn.textContent = yourSeat == null ? "Take Seat" : "Switch";
       btn.className = "primary";
-      btn.onclick = () => send("claimSeat", { seatIndex: seat.seatIndex, name: getEnteredName() });
+      btn.onclick = () => {
+        window.T42_FLOW?.setPhase?.("seats");
+        send("claimSeat", { seatIndex: seat.seatIndex, name: getEnteredName() });
+      };
     } else {
       btn.textContent = "Taken";
       btn.disabled = true;
@@ -1400,7 +1637,10 @@ function renderBidControls(s) {
   const passBtn = document.createElement("button");
   passBtn.textContent = "Pass";
   passBtn.disabled = !canBid;
-  passBtn.onclick = () => sendAction({ type: "bid", value: null });
+  passBtn.onclick = () => {
+    window.T42_FLOW?.setPhase?.("bidding");
+    sendAction({ type: "bid", value: null });
+  };
   bidControlsEl.appendChild(passBtn);
 
   if (followMode) {
@@ -1424,7 +1664,10 @@ function renderBidControls(s) {
     btn.textContent = String(bid);
     if (winningBid === bid) btn.classList.add("active-choice");
     btn.disabled = !canBid || bid < minBid;
-    btn.onclick = () => sendAction({ type: "bid", value: bid });
+    btn.onclick = () => {
+      window.T42_FLOW?.setPhase?.("bidding");
+      sendAction({ type: "bid", value: bid });
+    };
     bidControlsEl.appendChild(btn);
   }
 }
@@ -1459,7 +1702,10 @@ function renderTrumpControls(s) {
     btn.textContent = modeButton.label;
     if (gameMode === modeButton.key) btn.classList.add("active-choice");
     btn.disabled = !canSetMode;
-    btn.onclick = () => window.T42_RULES?.setMode?.(modeButton.key);
+    btn.onclick = () => {
+      window.T42_FLOW?.setPhase?.("trumpPick");
+      window.T42_RULES?.setMode?.(modeButton.key);
+    };
     modeRow.appendChild(btn);
   });
   wrap.appendChild(modeRow);
@@ -1485,7 +1731,10 @@ function renderTrumpControls(s) {
       btn.textContent = trumpLabel(trump);
       if (s.trump === trump) btn.classList.add("active-choice");
       btn.disabled = !canChoose;
-      btn.onclick = () => sendAction({ type: "chooseTrump", trump });
+      btn.onclick = () => {
+        window.T42_FLOW?.setPhase?.("playing");
+        sendAction({ type: "chooseTrump", trump });
+      };
       trumpGrid.appendChild(btn);
     }
   }
@@ -3100,6 +3349,7 @@ function renderSeatLabels() {
     el.dataset.logicalSeat = String(logicalSeat);
 
     const nameText = document.createElement("span");
+    nameText.className = "seat-name-text";
     nameText.textContent = seat.name;
     el.appendChild(nameText);
     el.appendChild(document.createElement("br"));
@@ -3290,6 +3540,7 @@ function animate(now) {
 
 function primeButtons() {
   ensureMenuToggleButton();
+  bootFlowOverlay();
   bootMarksMount();
   renderBidControls({ phase: "lobby", yourSeat: null, highestBid: null });
   renderTrumpControls({ phase: "lobby", yourSeat: null, isHost: false, gameMode: MODE_STRAIGHT });
