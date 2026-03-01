@@ -31,6 +31,25 @@ async function walk(dir) {
   return out;
 }
 
+async function pruneMetadata(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === '__MACOSX') {
+        await fs.rm(full, { recursive: true, force: true });
+        continue;
+      }
+      await pruneMetadata(full);
+      continue;
+    }
+
+    if (entry.name.startsWith('._')) {
+      await fs.rm(full, { force: true });
+    }
+  }
+}
+
 function normalizePosix(filePath) {
   return filePath.split(path.sep).join('/');
 }
@@ -55,6 +74,7 @@ async function main() {
 
   const zip = new AdmZip(INPUT_ZIP);
   zip.extractAllTo(MODELS_DIR, true);
+  await pruneMetadata(MODELS_DIR);
 
   const files = await walk(MODELS_DIR);
   const modelFiles = files.filter((file) => {
